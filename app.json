@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "TechSolutionsApp",
+    "slug": "TechSolutionsApp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/login-background.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/login-background.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/login-background.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {
+      "favicon": "./assets/login-background.png"
+    }
+  }
+}
