@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,9 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import * as Animatable from "react-native-animatable";
+import axios from 'axios'; // Importar axios
 
 const { width, height } = Dimensions.get("window");
 
@@ -17,14 +20,24 @@ const LoginScreen = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [showLogin, setShowLogin] = useState(true);
   const [isChecked, setIsChecked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [passwordStrength, setPasswordStrength] = useState("");
+  const emailInputRef = useRef(null);
 
   useEffect(() => {
     setUsername("");
     setEmail("");
     setPassword("");
+  }, [showLogin]);
+
+  useEffect(() => {
+    if (showLogin) {
+      emailInputRef.current?.focus(); // Autofocus en el campo de email al cargar la pantalla
+    }
   }, [showLogin]);
 
   const handleLogin = async () => {
@@ -34,7 +47,7 @@ const LoginScreen = () => {
     }
     setIsLoading(true);
     try {
-      const response = await fetch("http://192.168.1.95:3000/login", {
+      const response = await fetch("192.168.0.133:3000/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -63,22 +76,39 @@ const LoginScreen = () => {
     }
     setIsLoading(true);
     try {
-      const response = await fetch("http://192.168.1.95:3000/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, email, password }),
+      // Reemplazar fetch por axios
+      const response = await axios.post("http://192.168.0.133:3000/register", {
+        username,
+        email,
+        password,
       });
-      const data = await response.json();
-      if (data.success) {
+      
+      if (response.data.success) {
         Alert.alert("Éxito", "Registro exitoso");
-        console.log("Usuario registrado:", data.user);
+        console.log("Usuario registrado:", response.data.user);
       } else {
-        Alert.alert("Error", data.message);
+        Alert.alert("Error", response.data.message);
       }
     } catch (error) {
+      console.error("Error en el registro:", error);
       Alert.alert("Error", "Hubo un problema al conectarse con el servidor");
     }
     setIsLoading(false);
+  };
+
+  const validateEmail = (email) => {
+    const regex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
+    setEmailError(regex.test(email) ? "" : "El correo electrónico es inválido");
+  };
+
+  const checkPasswordStrength = (password) => {
+    if (password.length < 6) {
+      setPasswordStrength("Débil");
+    } else if (password.length >= 6 && password.length < 10) {
+      setPasswordStrength("Moderada");
+    } else {
+      setPasswordStrength("Fuerte");
+    }
   };
 
   const openPrivacyPolicy = () => {
@@ -91,13 +121,49 @@ const LoginScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Image source={require("./assets/login-background.png")} style={styles.logo} resizeMode="contain" />
-      <View style={styles.formContainer}>
+      <Animatable.Image
+        animation="bounceIn"
+        source={require("./assets/login-background.png")}
+        style={styles.logo}
+        resizeMode="contain"
+      />
+      <Animatable.View animation="fadeInUp" style={styles.formContainer}>
         {showLogin ? (
           <>
             <Text style={styles.title}>Iniciar Sesión</Text>
-            <TextInput style={styles.input} placeholder="Email" value={email} onChangeText={setEmail} />
-            <TextInput style={styles.input} placeholder="Contraseña" secureTextEntry value={password} onChangeText={setPassword} />
+            <View style={styles.inputContainer}>
+              <Ionicons name="mail-outline" size={20} color="gray" style={styles.icon} />
+              <TextInput
+                ref={emailInputRef}
+                style={styles.input}
+                placeholder="Email"
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  validateEmail(text);
+                }}
+              />
+            </View>
+            {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+            <View style={styles.inputContainer}>
+              <Ionicons name="lock-closed-outline" size={20} color="gray" style={styles.icon} />
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Contraseña"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  checkPasswordStrength(text);
+                }}
+              />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons name={showPassword ? "eye" : "eye-off"} size={24} color="gray" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.passwordStrengthContainer}>
+              <Text style={styles.passwordStrengthText}>{passwordStrength}</Text>
+            </View>
             {isLoading ? (
               <ActivityIndicator size="small" color="#0d47a1" />
             ) : (
@@ -112,9 +178,47 @@ const LoginScreen = () => {
         ) : (
           <>
             <Text style={styles.title}>Registrarse</Text>
-            <TextInput style={styles.input} placeholder="Nombre de usuario" value={username} onChangeText={setUsername} />
-            <TextInput style={styles.input} placeholder="Email" value={email} onChangeText={setEmail} />
-            <TextInput style={styles.input} placeholder="Contraseña" secureTextEntry value={password} onChangeText={setPassword} />
+            <View style={styles.inputContainer}>
+              <Ionicons name="person-outline" size={20} color="gray" style={styles.icon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Nombre de usuario"
+                value={username}
+                onChangeText={setUsername}
+              />
+            </View>
+            <View style={styles.inputContainer}>
+              <Ionicons name="mail-outline" size={20} color="gray" style={styles.icon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  validateEmail(text);
+                }}
+              />
+            </View>
+            {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+            <View style={styles.inputContainer}>
+              <Ionicons name="lock-closed-outline" size={20} color="gray" style={styles.icon} />
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Contraseña"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  checkPasswordStrength(text);
+                }}
+              />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons name={showPassword ? "eye" : "eye-off"} size={24} color="gray" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.passwordStrengthContainer}>
+              <Text style={styles.passwordStrengthText}>{passwordStrength}</Text>
+            </View>
             <TouchableOpacity style={styles.privacyContainer} onPress={() => setIsChecked(!isChecked)}>
               <View style={[styles.checkbox, isChecked && styles.checkboxChecked]} />
               <Text style={styles.privacyText}>
@@ -124,7 +228,11 @@ const LoginScreen = () => {
                 </Text>
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.button, !isChecked && styles.buttonDisabled]} onPress={handleRegister} disabled={!isChecked || isLoading}>
+            <TouchableOpacity
+              style={[styles.button, !isChecked && styles.buttonDisabled]}
+              onPress={handleRegister}
+              disabled={!isChecked || isLoading}
+            >
               {isLoading ? <ActivityIndicator size="small" color="white" /> : <Text style={styles.buttonText}>Registrarse</Text>}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowLogin(true)}>
@@ -132,26 +240,32 @@ const LoginScreen = () => {
             </TouchableOpacity>
           </>
         )}
-      </View>
+      </Animatable.View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#f8f9fa", paddingHorizontal: 20 },
-  logo: { width: width * 0.5, height: height * 0.2, marginBottom: 20 },
-  formContainer: { width: "100%", maxWidth: 400, backgroundColor: "#ffffff", padding: 20, borderRadius: 10, shadowColor: "black", shadowOpacity: 0.1, shadowRadius: 10, shadowOffset: { width: 0, height: 10 }, elevation: 5 },
-  title: { fontSize: 24, fontWeight: "bold", color: "#0d47a1", marginBottom: 20, textAlign: "center" },
-  input: { width: "100%", height: 40, backgroundColor: "#e3f2fd", borderRadius: 5, padding: 10, marginBottom: 10 },
-  button: { backgroundColor: "#0d47a1", padding: 10, borderRadius: 5, marginTop: 10 },
-  buttonDisabled: { backgroundColor: "#7b8c98" },
-  buttonText: { color: "white", textAlign: "center" },
-  link: { color: "#0d47a1", marginTop: 10, textAlign: "center" },
-  privacyContainer: { flexDirection: "row", alignItems: "center", marginTop: 10 },
-  checkbox: { width: 20, height: 20, borderWidth: 2, borderColor: "#0d47a1", borderRadius: 3, marginRight: 10 },
+  container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" },
+  logo: { width: width * 0.8, height: height * 0.2 },
+  formContainer: { width: width * 0.85 },
+  title: { fontSize: 28, fontWeight: "bold", marginBottom: 10, textAlign: "center" },
+  inputContainer: { flexDirection: "row", alignItems: "center", marginBottom: 20, borderBottomWidth: 1, borderColor: "gray" },
+  icon: { marginRight: 10 },
+  input: { flex: 1, fontSize: 16 },
+  passwordInput: { flex: 1, fontSize: 16 },
+  passwordStrengthContainer: { marginTop: 5 },
+  passwordStrengthText: { color: "gray" },
+  errorText: { color: "red", fontSize: 12, marginBottom: 10 },
+  button: { backgroundColor: "#0d47a1", paddingVertical: 15, borderRadius: 5, marginBottom: 10, alignItems: "center" },
+  buttonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+  buttonDisabled: { backgroundColor: "gray" },
+  link: { textAlign: "center", color: "#0d47a1", fontSize: 14 },
+  privacyContainer: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+  checkbox: { width: 20, height: 20, borderColor: "gray", borderWidth: 1, marginRight: 10 },
   checkboxChecked: { backgroundColor: "#0d47a1" },
-  privacyText: { fontSize: 14, color: "#0d47a1" },
-  privacyLink: { textDecorationLine: "underline", fontWeight: "bold" },
+  privacyText: { fontSize: 14 },
+  privacyLink: { color: "#0d47a1" },
 });
 
 export default LoginScreen;
