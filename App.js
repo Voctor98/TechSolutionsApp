@@ -1,21 +1,77 @@
+// LoginScreen.js
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   Image,
-  Dimensions,
   Alert,
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Animatable from "react-native-animatable";
-import axios from 'axios'; // Importar axios
+import axios from 'axios';
+import { styles } from './styles'; // Import the styles
 
-const { width, height } = Dimensions.get("window");
+// --- Helper Functions ---
+const validateEmailFormat = (email) => /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/.test(email);
 
+const checkPasswordStrengthValue = (password) => {
+  if (password.length < 6) return "Débil";
+  if (password.length < 10) return "Moderada";
+  return "Fuerte";
+};
+
+// --- Custom Components ---
+const InputField = React.forwardRef(({ iconName, placeholder, value, onChangeText, isPassword, showPassword, setShowPassword, isDarkMode, error }, ref) => (
+  <View style={[styles.inputContainer, isDarkMode && styles.darkInputContainer]}>
+    <Ionicons name={iconName} size={20} color={isDarkMode ? "white" : "gray"} style={styles.icon} />
+    <TextInput
+      style={[styles.input, isDarkMode && styles.darkInput]}
+      placeholder={placeholder}
+      placeholderTextColor={isDarkMode ? "#d3d3d3" : "gray"}
+      value={value}
+      onChangeText={onChangeText}
+      secureTextEntry={isPassword && !showPassword}
+      ref={ref} // Attach the ref
+    />
+    {isPassword && (
+      <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+        <Ionicons name={showPassword ? "eye" : "eye-off"} size={24} color={isDarkMode ? "white" : "gray"} />
+      </TouchableOpacity>
+    )}
+  </View>
+));
+
+const FormButton = ({ title, onPress, isDarkMode, disabled, isLoading }) => (
+    <TouchableOpacity
+        style={[styles.button, isDarkMode && styles.darkButton, disabled && styles.buttonDisabled]}
+        onPress={onPress}
+        disabled={disabled}
+    >
+      {isLoading ? (
+        <ActivityIndicator size="small" color={isDarkMode? "#121212" : "white"} />
+      ) : (
+        <Text style={[styles.buttonText, isDarkMode && styles.darkText]}>{title}</Text>
+      )}
+    </TouchableOpacity>
+);
+
+const PrivacyPolicyLink = ({ isDarkMode, isChecked, setIsChecked, openPrivacyPolicy }) => (
+  <TouchableOpacity style={styles.privacyContainer} onPress={() => setIsChecked(!isChecked)}>
+    <View style={[styles.checkbox, isChecked && styles.checkboxChecked, isDarkMode && styles.darkCheckbox]} />
+    <Text style={[styles.privacyText, isDarkMode && styles.darkText]}>
+      Acepto el{" "}
+      <Text style={[styles.privacyLink, isDarkMode && styles.darkPrivacyLink]} onPress={openPrivacyPolicy}>
+        Aviso de Privacidad
+      </Text>
+    </Text>
+  </TouchableOpacity>
+);
+
+
+// --- Main Component ---
 const LoginScreen = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -26,19 +82,23 @@ const LoginScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [passwordStrength, setPasswordStrength] = useState("");
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const emailInputRef = useRef(null);
 
   useEffect(() => {
-    setUsername("");
-    setEmail("");
-    setPassword("");
+    if (showLogin && emailInputRef.current) {
+      emailInputRef.current.focus();
+    }
+    // Reset form fields when switching between login/register
+     setUsername("");
+     setEmail("");
+     setPassword("");
+     setEmailError(""); // Reset error
+     setPasswordStrength(""); // Reset strength
+     setIsChecked(false); // Reset checkbox
+
   }, [showLogin]);
 
-  useEffect(() => {
-    if (showLogin) {
-      emailInputRef.current?.focus(); // Autofocus en el campo de email al cargar la pantalla
-    }
-  }, [showLogin]);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -47,7 +107,7 @@ const LoginScreen = () => {
     }
     setIsLoading(true);
     try {
-      const response = await fetch("192.168.0.133:3000/login", {
+      const response = await fetch("http://192.168.1.95:3000/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -61,8 +121,9 @@ const LoginScreen = () => {
       }
     } catch (error) {
       Alert.alert("Error", "Hubo un problema al conectarse con el servidor");
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const handleRegister = async () => {
@@ -76,13 +137,12 @@ const LoginScreen = () => {
     }
     setIsLoading(true);
     try {
-      // Reemplazar fetch por axios
-      const response = await axios.post("http://192.168.0.133:3000/register", {
+      const response = await axios.post("http://192.168.1.95:3000/register", {
         username,
         email,
         password,
       });
-      
+
       if (response.data.success) {
         Alert.alert("Éxito", "Registro exitoso");
         console.log("Usuario registrado:", response.data.user);
@@ -92,24 +152,11 @@ const LoginScreen = () => {
     } catch (error) {
       console.error("Error en el registro:", error);
       Alert.alert("Error", "Hubo un problema al conectarse con el servidor");
-    }
-    setIsLoading(false);
-  };
-
-  const validateEmail = (email) => {
-    const regex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
-    setEmailError(regex.test(email) ? "" : "El correo electrónico es inválido");
-  };
-
-  const checkPasswordStrength = (password) => {
-    if (password.length < 6) {
-      setPasswordStrength("Débil");
-    } else if (password.length >= 6 && password.length < 10) {
-      setPasswordStrength("Moderada");
-    } else {
-      setPasswordStrength("Fuerte");
+    } finally {
+      setIsLoading(false);
     }
   };
+
 
   const openPrivacyPolicy = () => {
     Alert.alert(
@@ -119,153 +166,107 @@ const LoginScreen = () => {
     );
   };
 
+  const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDarkMode && styles.darkContainer]}>
       <Animatable.Image
         animation="bounceIn"
         source={require("./assets/login-background.png")}
         style={styles.logo}
         resizeMode="contain"
       />
-      <Animatable.View animation="fadeInUp" style={styles.formContainer}>
+      <Animatable.View style={[styles.formContainer, isDarkMode && styles.darkFormContainer]}>
         {showLogin ? (
           <>
-            <Text style={styles.title}>Iniciar Sesión</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="mail-outline" size={20} color="gray" style={styles.icon} />
-              <TextInput
-                ref={emailInputRef}
-                style={styles.input}
-                placeholder="Email"
-                value={email}
-                onChangeText={(text) => {
-                  setEmail(text);
-                  validateEmail(text);
-                }}
-              />
-            </View>
-            {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
-            <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed-outline" size={20} color="gray" style={styles.icon} />
-              <TextInput
-                style={styles.passwordInput}
-                placeholder="Contraseña"
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={(text) => {
-                  setPassword(text);
-                  checkPasswordStrength(text);
-                }}
-              />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                <Ionicons name={showPassword ? "eye" : "eye-off"} size={24} color="gray" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.passwordStrengthContainer}>
-              <Text style={styles.passwordStrengthText}>{passwordStrength}</Text>
-            </View>
-            {isLoading ? (
-              <ActivityIndicator size="small" color="#0d47a1" />
-            ) : (
-              <TouchableOpacity style={styles.button} onPress={handleLogin}>
-                <Text style={styles.buttonText}>Iniciar Sesión</Text>
-              </TouchableOpacity>
-            )}
+            <Text style={[styles.title, isDarkMode && styles.darkText]}>Iniciar Sesión</Text>
+            <InputField
+              iconName="mail-outline"
+              placeholder="Email"
+              value={email}
+              onChangeText={(text) => {
+                setEmail(text);
+                setEmailError(validateEmailFormat(text) ? "" : "Email inválido");
+              }}
+              isDarkMode={isDarkMode}
+              error={emailError}
+              ref={emailInputRef} // Pass the ref here
+            />
+            {emailError ? <Text style={[styles.errorText, isDarkMode && styles.darkErrorText]}>{emailError}</Text> : null}
+
+            <InputField
+              iconName="lock-closed-outline"
+              placeholder="Contraseña"
+              value={password}
+              onChangeText={setPassword}
+              isPassword={true}
+              showPassword={showPassword}
+              setShowPassword={setShowPassword}
+              isDarkMode={isDarkMode}
+            />
+            <FormButton title="Iniciar Sesión" onPress={handleLogin} isDarkMode={isDarkMode} isLoading={isLoading} />
             <TouchableOpacity onPress={() => setShowLogin(false)}>
-              <Text style={styles.link}>¿No tienes cuenta? Regístrate</Text>
+              <Text style={[styles.link, isDarkMode && styles.darkText]}>¿No tienes cuenta? Regístrate</Text>
             </TouchableOpacity>
           </>
         ) : (
           <>
-            <Text style={styles.title}>Registrarse</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="person-outline" size={20} color="gray" style={styles.icon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Nombre de usuario"
-                value={username}
-                onChangeText={setUsername}
-              />
+            <Text style={[styles.title, isDarkMode && styles.darkText]}>Registrarse</Text>
+            <InputField
+              iconName="person-outline"
+              placeholder="Nombre de usuario"
+              value={username}
+              onChangeText={setUsername}
+              isDarkMode={isDarkMode}
+            />
+            <InputField
+              iconName="mail-outline"
+              placeholder="Email"
+              value={email}
+              onChangeText={(text) => {
+                setEmail(text);
+                setEmailError(validateEmailFormat(text) ? "" : "Email inválido");
+
+              }}
+              isDarkMode={isDarkMode}
+              error={emailError}
+            />
+             {emailError ? <Text style={[styles.errorText, isDarkMode && styles.darkErrorText]}>{emailError}</Text> : null}
+            <InputField
+              iconName="lock-closed-outline"
+              placeholder="Contraseña"
+              value={password}
+              onChangeText={(text) => {
+                setPassword(text);
+                setPasswordStrength(checkPasswordStrengthValue(text));
+              }}
+              isPassword={true}
+              showPassword={showPassword}
+              setShowPassword={setShowPassword}
+              isDarkMode={isDarkMode}
+            />
+            <View style={[styles.passwordStrengthContainer, isDarkMode && styles.darkPasswordStrengthContainer]}>
+              <Text style={[styles.passwordStrengthText, isDarkMode && styles.darkText]}>{passwordStrength}</Text>
             </View>
-            <View style={styles.inputContainer}>
-              <Ionicons name="mail-outline" size={20} color="gray" style={styles.icon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Email"
-                value={email}
-                onChangeText={(text) => {
-                  setEmail(text);
-                  validateEmail(text);
-                }}
-              />
-            </View>
-            {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
-            <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed-outline" size={20} color="gray" style={styles.icon} />
-              <TextInput
-                style={styles.passwordInput}
-                placeholder="Contraseña"
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={(text) => {
-                  setPassword(text);
-                  checkPasswordStrength(text);
-                }}
-              />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                <Ionicons name={showPassword ? "eye" : "eye-off"} size={24} color="gray" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.passwordStrengthContainer}>
-              <Text style={styles.passwordStrengthText}>{passwordStrength}</Text>
-            </View>
-            <TouchableOpacity style={styles.privacyContainer} onPress={() => setIsChecked(!isChecked)}>
-              <View style={[styles.checkbox, isChecked && styles.checkboxChecked]} />
-              <Text style={styles.privacyText}>
-                Acepto el{" "}
-                <Text style={styles.privacyLink} onPress={openPrivacyPolicy}>
-                  Aviso de Privacidad
-                </Text>
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, !isChecked && styles.buttonDisabled]}
-              onPress={handleRegister}
-              disabled={!isChecked || isLoading}
-            >
-              {isLoading ? <ActivityIndicator size="small" color="white" /> : <Text style={styles.buttonText}>Registrarse</Text>}
-            </TouchableOpacity>
+
+            <PrivacyPolicyLink isDarkMode={isDarkMode} isChecked={isChecked} setIsChecked={setIsChecked} openPrivacyPolicy={openPrivacyPolicy}/>
+
+            <FormButton title="Registrarse" onPress={handleRegister} isDarkMode={isDarkMode} disabled={!isChecked} isLoading={isLoading}/>
             <TouchableOpacity onPress={() => setShowLogin(true)}>
-              <Text style={styles.link}>¿Ya tienes cuenta? Inicia sesión</Text>
+              <Text style={[styles.link, isDarkMode && styles.darkText]}>¿Ya tienes cuenta? Inicia sesión</Text>
             </TouchableOpacity>
           </>
         )}
       </Animatable.View>
+      {/* Dark Mode Button */}
+      <TouchableOpacity style={[styles.darkModeButton, isDarkMode && styles.darkButton]} onPress={toggleDarkMode}>
+        <Ionicons name={isDarkMode ? "sunny" : "moon"} size={24} color={isDarkMode ? "white" : "#0D47A1"} />
+        <Text style={[styles.darkModeButtonText, isDarkMode && styles.darkText]}>
+          {isDarkMode ? "Modo Claro" : "Modo Oscuro"}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" },
-  logo: { width: width * 0.8, height: height * 0.2 },
-  formContainer: { width: width * 0.85 },
-  title: { fontSize: 28, fontWeight: "bold", marginBottom: 10, textAlign: "center" },
-  inputContainer: { flexDirection: "row", alignItems: "center", marginBottom: 20, borderBottomWidth: 1, borderColor: "gray" },
-  icon: { marginRight: 10 },
-  input: { flex: 1, fontSize: 16 },
-  passwordInput: { flex: 1, fontSize: 16 },
-  passwordStrengthContainer: { marginTop: 5 },
-  passwordStrengthText: { color: "gray" },
-  errorText: { color: "red", fontSize: 12, marginBottom: 10 },
-  button: { backgroundColor: "#0d47a1", paddingVertical: 15, borderRadius: 5, marginBottom: 10, alignItems: "center" },
-  buttonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  buttonDisabled: { backgroundColor: "gray" },
-  link: { textAlign: "center", color: "#0d47a1", fontSize: 14 },
-  privacyContainer: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  checkbox: { width: 20, height: 20, borderColor: "gray", borderWidth: 1, marginRight: 10 },
-  checkboxChecked: { backgroundColor: "#0d47a1" },
-  privacyText: { fontSize: 14 },
-  privacyLink: { color: "#0d47a1" },
-});
 
 export default LoginScreen;

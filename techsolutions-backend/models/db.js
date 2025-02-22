@@ -7,12 +7,12 @@ const db = mysql.createConnection({
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    port: 3306 // Asegúrate de que MySQL usa este puerto
+    port: 3306
 });
 
 db.connect((err) => {
     if (err) {
-        console.error('❌ Error al conectar a MySQL:', err);
+        console.error('❌ Error al conectar a MySQL:', err.code, err.sqlMessage);
         return;
     }
     console.log('✅ Conectado a MySQL');

@@ -2,7 +2,8 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const userRoutes = require('./routes/userRoutes'); // Ruta correcta a userRoutes.js
+const userRoutes = require('./routes/userRoutes');
+const db = require('./models/db'); // 🔹 Importar conexión a MySQL
 
 dotenv.config();
 
@@ -13,7 +14,7 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // Rutas de API
-app.use('/api', userRoutes); // <- Esto es importante
+app.use('/api', userRoutes);
 
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
