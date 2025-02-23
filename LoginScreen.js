@@ -3,16 +3,16 @@ import React, { useState, useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, Image, Alert, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Animatable from "react-native-animatable";
-import { styles } from './styles'; // Import the styles
-import { InputField, FormButton } from './CustomComponents';  // Import custom components
+import { styles } from './styles';
+import { InputField, FormButton } from './CustomComponents';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
 
 
 // --- Helper Functions ---
 const validateEmailFormat = (email) => /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/.test(email);
 
-
 // --- Main Component ---
-const LoginScreen = ({ onNavigateToRegister, isDarkMode, toggleDarkMode }) => {
+const LoginScreen = ({ onNavigateToRegister, onLoginSuccess, isDarkMode, toggleDarkMode }) => { // Add onLoginSuccess
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -35,24 +35,28 @@ const LoginScreen = ({ onNavigateToRegister, isDarkMode, toggleDarkMode }) => {
       return;
     }
     setIsLoading(true);
-    try {
-      const response = await fetch("http://192.168.1.95:3000/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        Alert.alert("Éxito", "Inicio de sesión exitoso");
-        console.log("Usuario autenticado:", data.user);
-      } else {
-        Alert.alert("Error", data.message);
-      }
-    } catch (error) {
-      Alert.alert("Error", "Hubo un problema al conectarse con el servidor");
-    } finally {
-      setIsLoading(false);
-    }
+        try {
+            // 1. Get users from AsyncStorage
+            const existingUsers = await AsyncStorage.getItem('users');
+            const users = existingUsers ? JSON.parse(existingUsers) : [];
+
+            // 2. Find user with matching email and password
+            const user = users.find(u => u.email === email && u.password === password);
+
+            // 3. Handle login success/failure
+            if (user) {
+                // Successful login
+                onLoginSuccess(); // Navigate to home screen
+            } else {
+                // Failed login
+                Alert.alert("Error", "Email o contraseña incorrectos.");
+            }
+        } catch (error) {
+            console.error("Error during login:", error);
+            Alert.alert("Error", "Hubo un problema al iniciar sesión.");
+        } finally {
+            setIsLoading(false);
+        }
   };
 
   return (
