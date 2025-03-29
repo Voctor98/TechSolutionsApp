@@ -1,65 +1,93 @@
 // App.js
 import React, { useState } from 'react';
-import { View, StyleSheet, Alert } from 'react-native'; //CORRECT IMPORT
+import { View, StyleSheet, Alert } from 'react-native'; 
 import LoginScreen from './LoginScreen';
 import RegisterScreen from './RegisterScreen';
 import HomeScreen from './HomeScreen';
-import UsersScreen from './UsersScreen'; // Import UsersScreen
+import UsersScreen from './UsersScreen'; 
+import InventoryScreen from './InventoryScreen'; // Importar la pantalla Inventory
 
 const App = () => {
   const [showLogin, setShowLogin] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [showUsers, setShowUsers] = useState(false); // New state for UsersScreen
+  const [showUsers, setShowUsers] = useState(false);
+  const [showInventory, setShowInventory] = useState(false); // Nuevo estado para InventoryScreen
 
   const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
 
   const navigateToRegister = () => {
     setShowLogin(false);
-    setShowUsers(false); // Hide UsersScreen when navigating away
+    setShowUsers(false);
+    setShowInventory(false); // Asegurarse de que no se vea InventoryScreen
   };
 
   const navigateToLogin = () => {
     setShowLogin(true);
-    setShowUsers(false); // Hide UsersScreen when navigating away
+    setShowUsers(false);
+    setShowInventory(false); // Asegurarse de que no se vea InventoryScreen
   };
 
   const handleLoginSuccess = () => {
     setIsLoggedIn(true);
-    setShowUsers(false); // Ensure UsersScreen is hidden initially
+    setShowUsers(false);
+    setShowInventory(false); // Asegurarse de que no se vea InventoryScreen
   };
 
   const handleRegisterSuccess = () => {
-    // After successful registration, go to login screen
     setShowLogin(true);
     Alert.alert("Éxito", "Registro exitoso. Ahora puedes iniciar sesión.");
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
-    setShowUsers(false); // Hide UsersScreen on logout
+    setShowUsers(false);
+    setShowInventory(false); // Asegurarse de que no se vea InventoryScreen
   };
 
-    const navigateToUsers = () => {
+  const navigateToUsers = () => {
     setShowUsers(true);
+    setShowInventory(false); // Asegurarse de que no se vea InventoryScreen
+  };
+
+  const navigateToInventory = () => {
+    setShowInventory(true);
+    setShowUsers(false); // Asegurarse de que no se vea UsersScreen
   };
 
   const goBackToHome = () => {
-      setShowUsers(false);
-  }
+    setShowInventory(false);
+    setShowUsers(false);
+  };
 
   return (
       <View style={styles.container}>
         {isLoggedIn ? (
           showUsers ? (
             <UsersScreen isDarkMode={isDarkMode} goBackToHome={goBackToHome}/>
+          ) : showInventory ? (
+            <InventoryScreen onGoBack={goBackToHome} /> // Aquí renderizamos InventoryScreen
           ) : (
-            <HomeScreen onLogout={handleLogout} isDarkMode={isDarkMode} onNavigateToUsers={navigateToUsers} />
+            <HomeScreen 
+              onLogout={handleLogout} 
+              isDarkMode={isDarkMode} 
+              onNavigateToUsers={navigateToUsers} 
+              onNavigateToInventory={navigateToInventory} // Pasamos la función para navegar a Inventory
+            />
           )
         ) : showLogin ? (
-          <LoginScreen onNavigateToRegister={navigateToRegister} onLoginSuccess={handleLoginSuccess} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />
+          <LoginScreen 
+            onNavigateToRegister={navigateToRegister} 
+            onLoginSuccess={handleLoginSuccess} 
+            isDarkMode={isDarkMode} 
+            toggleDarkMode={toggleDarkMode} 
+          />
         ) : (
-          <RegisterScreen onNavigateToLogin={navigateToLogin} onRegisterSuccess={handleRegisterSuccess} isDarkMode={isDarkMode} />
+          <RegisterScreen 
+            onNavigateToLogin={navigateToLogin} 
+            onRegisterSuccess={handleRegisterSuccess} 
+            isDarkMode={isDarkMode} 
+          />
         )}
       </View>
   );
