@@ -8,100 +8,137 @@ import {
   ScrollView,
   TouchableOpacity,
   Modal,
-  TextInput, // Importar TextInput para formularios
-  Alert,      // Importar Alert para confirmaciones
+  TextInput,
+  Alert,
+  Platform // Importar Platform para verificar el sistema operativo si es necesario para permisos
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker'; // Importar ImagePicker
 
-
+// --- Datos Iniciales (sin cambios por ahora) ---
 const INITIAL_PRODUCTS = [
   {
-    id: '1', // ID único
+    id: '1',
     name: 'Monitor Dell UltraSharp U2718Q',
     description: 'Este monitor cuenta con tecnología HDR...',
-    imageSource: require('./assets/product1.jpg'), // Mantener require por simplicidad
+    imageSource: require('./assets/product1.jpg'), // require ID (number)
   },
   {
     id: '2',
     name: 'Mouse Logitech G203',
     description: 'El Logitech G203 es un ratón para gaming...',
-    imageSource: require('./assets/product2.jpg'),
+    imageSource: require('./assets/product2.jpg'), // require ID (number)
   },
   {
     id: '3',
     name: 'Samsung Galaxy S21',
     description: 'Cuenta con una pantalla Dynamic AMOLED 2X...',
-    imageSource: require('./assets/product3.jpg'),
+    imageSource: require('./assets/product3.jpg'), // require ID (number)
   },
 ];
+const PLACEHOLDER_IMAGE = require('./assets/profile-placeholder.png'); // Define tu placeholder
 
 // --- Componente HomeScreen ---
 const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
+  // ... (estados existentes: showInventory, products, modalVisible, selectedProduct, modalMode, productName, productDescription) ...
   const [showInventory, setShowInventory] = useState(false);
-  const [products, setProducts] = useState(INITIAL_PRODUCTS); // Estado para la lista de productos
+  const [products, setProducts] = useState(INITIAL_PRODUCTS);
   const [modalVisible, setModalVisible] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null); // Producto para ver/editar
-  const [modalMode, setModalMode] = useState('view'); // 'view', 'add', 'edit'
-  
-  // Estado para los campos del formulario (usado para add/edit)
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [modalMode, setModalMode] = useState('view');
   const [productName, setProductName] = useState('');
   const [productDescription, setProductDescription] = useState('');
-  // Para la imagen, en este ejemplo simple, no permitiremos cambiarla fácilmente
-  // desde el formulario. Se podría añadir un selector o campo de URL.
+
+  // --- NUEVO ESTADO ---
+  // Guarda la URI de la imagen seleccionada en el formulario (o null)
+  const [productImageUri, setProductImageUri] = useState(null);
+
+  // --- Función para Seleccionar Imagen ---
+  const pickImage = async () => {
+    // Pedir permiso para acceder a la galería
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso denegado', 'Necesitamos permiso para acceder a tus fotos.');
+      return;
+    }
+
+    // Lanzar el selector de imágenes
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images, // Solo imágenes
+      allowsEditing: true, // Permitir recortar/editar
+      aspect: [4, 3],      // Proporción (opcional)
+      quality: 0.8,        // Calidad (0 a 1)
+    });
+
+    // console.log(result); // Para depurar y ver la estructura del resultado
+
+    if (!result.canceled) {
+      // En SDK >= 48, la URI está en result.assets[0].uri
+      // En SDK < 48, estaba en result.uri
+      const selectedUri = result.assets && result.assets.length > 0 ? result.assets[0].uri : result.uri;
+      if (selectedUri) {
+        setProductImageUri(selectedUri); // Guardar la URI en el estado del formulario
+      }
+    }
+  };
+
 
   const toggleInventory = () => {
     setShowInventory(!showInventory);
   };
 
-  // --- Funciones para Abrir el Modal ---
+  // --- Funciones para Abrir el Modal (Ajustadas) ---
   const handleProductPress = (product) => {
     setSelectedProduct(product);
-    setModalMode('view'); // Modo vista por defecto al seleccionar
+    setModalMode('view');
+    // No necesitamos setear productImageUri aquí, se usa solo para add/edit
     setModalVisible(true);
   };
 
   const openAddModal = () => {
-    setSelectedProduct(null); // Limpiar selección previa
-    setProductName(''); // Resetear campos del formulario
+    setSelectedProduct(null);
+    setProductName('');
     setProductDescription('');
+    setProductImageUri(null); // Resetear URI de imagen para nuevo producto
     setModalMode('add');
     setModalVisible(true);
   };
 
   const openEditModal = (product) => {
     setSelectedProduct(product);
-    setProductName(product.name); // Precargar campos con datos actuales
+    setProductName(product.name);
     setProductDescription(product.description);
+    // Si el producto existente tiene una URI, mostrarla, si no (es require), mostrar null (o la imagen original via selectedProduct)
+    setProductImageUri(typeof product.imageSource === 'object' ? product.imageSource.uri : null);
     setModalMode('edit');
-    setModalVisible(true); // Modal ya debería estar visible, pero aseguramos
+    setModalVisible(true);
   };
 
-  // --- Función para Cerrar el Modal ---
+  // --- Función para Cerrar el Modal (Ajustada) ---
   const closeModal = () => {
     setModalVisible(false);
-    setSelectedProduct(null); // Limpiar selección
-    setModalMode('view'); // Resetear modo
-    // Resetear campos del formulario
+    setSelectedProduct(null);
+    setModalMode('view');
     setProductName('');
     setProductDescription('');
+    setProductImageUri(null); // Resetear URI al cerrar
   };
 
-  // --- Funciones CRUD ---
+  // --- Funciones CRUD (Ajustadas) ---
   const handleAddProduct = () => {
     if (!productName || !productDescription) {
       Alert.alert('Error', 'Por favor, completa nombre y descripción.');
       return;
     }
     const newProduct = {
-      // Generar un ID simple (en una app real, usar UUID o ID de backend)
-      id: Date.now().toString(), 
+      id: Date.now().toString(),
       name: productName,
       description: productDescription,
-      // Asignar una imagen por defecto o permitir selección (simplificado aquí)
-      imageSource: require('./assets/profile-placeholder.png'), // Placeholder
+      // Usar la URI seleccionada si existe, si no, usar el placeholder
+      imageSource: productImageUri ? { uri: productImageUri } : PLACEHOLDER_IMAGE,
     };
-    setProducts([...products, newProduct]); // Añadir al estado
-    closeModal(); // Cerrar modal
+    setProducts([...products, newProduct]);
+    closeModal();
   };
 
   const handleUpdateProduct = () => {
@@ -110,17 +147,30 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
       return;
     }
     setProducts(
-      products.map((p) =>
-        p.id === selectedProduct.id
-          ? { ...p, name: productName, description: productDescription } // Actualizar solo nombre/descripción
-          : p
-      )
+      products.map((p) => {
+        if (p.id === selectedProduct.id) {
+          // Crear el producto actualizado
+          const updatedProduct = {
+            ...p, // Copiar propiedades existentes
+            name: productName,
+            description: productDescription,
+          };
+          // Solo actualizar imageSource si se seleccionó una NUEVA imagen (productImageUri tiene valor)
+          if (productImageUri) {
+            updatedProduct.imageSource = { uri: productImageUri };
+          }
+          // Si no se seleccionó nueva imagen (productImageUri es null),
+          // se mantiene el p.imageSource original gracias al spread operator (...)
+          return updatedProduct;
+        }
+        return p; // Devolver los otros productos sin cambios
+      })
     );
     closeModal();
   };
 
-  const handleDeleteProduct = (productId) => {
-    Alert.alert( // Confirmación antes de borrar
+ const handleDeleteProduct = (productId) => {
+    Alert.alert(
       'Confirmar Eliminación',
       '¿Estás seguro de que quieres eliminar este producto?',
       [
@@ -129,7 +179,7 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
           text: 'Eliminar',
           onPress: () => {
             setProducts(products.filter((p) => p.id !== productId));
-            closeModal(); // Cierra el modal después de eliminar
+            closeModal();
           },
           style: 'destructive',
         },
@@ -137,62 +187,79 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
     );
   };
 
+  // --- Determinar qué imagen mostrar en la preview del formulario ---
+  const getPreviewImageSource = () => {
+    // Prioridad 1: Nueva imagen seleccionada en el form (URI)
+    if (productImageUri) {
+      return { uri: productImageUri };
+    }
+    // Prioridad 2: Imagen existente del producto que se está editando
+    if (modalMode === 'edit' && selectedProduct && selectedProduct.imageSource) {
+      // selectedProduct.imageSource puede ser require() o { uri: ... }, Image lo maneja
+      return selectedProduct.imageSource;
+    }
+    // Prioridad 3: Placeholder para modo 'add' o si no hay imagen
+    return PLACEHOLDER_IMAGE;
+  };
+
 
   return (
     <ScrollView contentContainerStyle={[styles.container, isDarkMode && styles.darkContainer]}>
-      {/* ... (Sección de Perfil y Botón Usuarios - sin cambios) ... */}
-      <View style={[styles.profileSection, isDarkMode && styles.darkProfileSection]}>
-       <Image
-         source={require('./assets/profile-placeholder.png')}
-         style={styles.profileImage}
-       />
-       <Text style={[styles.welcomeText, isDarkMode && styles.darkText]}>Te damos la bienvenida</Text>
-     </View>
+      {/* ... (Sección de Perfil, FeatureCard, Botón Usuarios - sin cambios) ... */}
+        <View style={[styles.profileSection, isDarkMode && styles.darkProfileSection]}>
+         <Image
+           source={require('./assets/profile-placeholder.png')}
+           style={styles.profileImage}
+         />
+         <Text style={[styles.welcomeText, isDarkMode && styles.darkText]}>Te damos la bienvenida a TechSolutionsApp</Text>
+       </View>
 
-     <View style={styles.contentArea}>
-       <FeatureCard
-         title="Productos"
-         description="Gestiona tus productos electrónicos." // Texto actualizado
-         isDarkMode={isDarkMode}
-         iconName="basket-outline"
-         onPress={toggleInventory}
-       />
-       
-       <TouchableOpacity style={[styles.viewUsersButton, isDarkMode && styles.darkButton]} onPress={onNavigateToUsers}>
-         <Text style={[styles.viewUsersButtonText, isDarkMode && styles.darkText]}>Ver usuarios registrados</Text>
-       </TouchableOpacity>
-     </View>
+       <View style={styles.contentArea}>
+         <FeatureCard
+           title="Productos"
+           description="Gestiona tus productos electrónicos."
+           isDarkMode={isDarkMode}
+           iconName="basket-outline"
+           onPress={toggleInventory}
+         />
 
-      {/* --- Sección de Inventario --- */}
-      {showInventory && (
-        <View style={styles.inventoryContainer}>
-          <View style={styles.inventoryHeader}>
-            <Text style={[styles.inventoryTitle, isDarkMode && styles.darkText]}>Inventario</Text>
-            {/* Botón para Agregar Producto */}
-            <TouchableOpacity onPress={openAddModal} style={styles.addButton}>
-              <Ionicons name="add-circle" size={30} color="#2ecc71" />
-            </TouchableOpacity>
+         <TouchableOpacity style={[styles.viewUsersButton, isDarkMode && styles.darkButton]} onPress={onNavigateToUsers}>
+           <Text style={[styles.viewUsersButtonText, isDarkMode && styles.darkText]}>Ver usuarios registrados</Text>
+         </TouchableOpacity>
+       </View>
+
+
+      {/* --- Sección de Inventario (sin cambios relevantes en la estructura) --- */}
+        {showInventory && (
+          <View style={styles.inventoryContainer}>
+            <View style={styles.inventoryHeader}>
+              <Text style={[styles.inventoryTitle, isDarkMode && styles.darkText]}>Inventario</Text>
+              <TouchableOpacity onPress={openAddModal} style={styles.addButton}>
+                <Ionicons name="add-circle" size={30} color="#2ecc71" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.productList}>
+              {products.length > 0 ? (
+                products.map((product) => (
+                   product && product.id ? ( // Check added previously
+                    <ProductCard
+                      key={product.id}
+                      name={product.name}
+                      // imageSource puede ser require() o {uri: ...}, ProductCard lo debe manejar
+                      imageSource={product.imageSource}
+                      onPress={() => handleProductPress(product)}
+                    />
+                  ) : null
+                ))
+              ) : (
+                 <Text style={[styles.noProductsText, isDarkMode && styles.darkText]}>
+                    No hay productos para mostrar.
+                 </Text>
+              )}
+            </View>
           </View>
-
-          {/* Mapeo de la lista de productos del estado */}
-          <View style={styles.productList}>
-            {products.length > 0 ? (
-              products.map((product) => (
-                <ProductCard
-                  key={product.id} // ¡Key es importante para listas!
-                  name={product.name}
-                  imageSource={product.imageSource} // Pasar la fuente de imagen
-                  // onPress ya no necesita pasar los detalles, solo el objeto producto
-                  onPress={() => handleProductPress(product)}
-                  // No mostrar descripción completa en la tarjeta pequeña
-                />
-              ))
-            ) : (
-              <Text style={isDarkMode ? styles.darkText : null}>No hay productos para mostrar.</Text>
-            )}
-          </View>
-        </View>
-      )}
+        )}
 
       {/* ... (Botón Salir - sin cambios) ... */}
        <TouchableOpacity style={[styles.logoutButton, isDarkMode && styles.darkLogoutButton]} onPress={onLogout}>
@@ -201,7 +268,7 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
        </TouchableOpacity>
 
 
-      {/* --- Modal Unificado para Ver, Agregar y Editar --- */}
+      {/* --- Modal Unificado (Ajustado para Imagen) --- */}
       <Modal
         visible={modalVisible}
         animationType="slide"
@@ -215,7 +282,12 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
             {/* --- Modo VISTA --- */}
             {modalMode === 'view' && selectedProduct && (
               <>
-                <Image source={selectedProduct.imageSource} style={styles.modalProductImage} resizeMode="contain" />
+                {/* Image ahora maneja require() o {uri: ...} automáticamente */}
+                <Image
+                    source={selectedProduct.imageSource || PLACEHOLDER_IMAGE}
+                    style={styles.modalProductImage}
+                    resizeMode="contain"
+                 />
                 <Text style={[styles.modalProductName, isDarkMode && styles.darkText]}>{selectedProduct.name}</Text>
                 <Text style={[styles.modalProductDescription, isDarkMode && styles.darkText]}>{selectedProduct.description}</Text>
                 <View style={styles.modalActions}>
@@ -232,8 +304,23 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
                 <Text style={[styles.modalTitle, isDarkMode && styles.darkText]}>
                   {modalMode === 'add' ? 'Agregar Producto' : 'Editar Producto'}
                 </Text>
-                
+
+                 {/* --- Preview de Imagen y Botón para Seleccionar --- */}
+                 <View style={styles.imagePickerContainer}>
+                    <Text style={[styles.label, isDarkMode && styles.darkText]}>Imagen:</Text>
+                    <TouchableOpacity onPress={pickImage} style={styles.imagePreviewContainer}>
+                        <Image
+                          source={getPreviewImageSource()} // Usa la función helper
+                          style={styles.imagePreview}
+                          resizeMode="contain"
+                        />
+                        <Text style={styles.changeImageText}>Toca para cambiar</Text>
+                    </TouchableOpacity>
+                 </View>
+
+
                 {/* Campo Nombre */}
+                <Text style={[styles.label, isDarkMode && styles.darkText]}>Nombre:</Text>
                 <TextInput
                   style={[styles.input, isDarkMode && styles.darkInput]}
                   placeholder="Nombre del Producto"
@@ -243,6 +330,7 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
                 />
 
                 {/* Campo Descripción */}
+                 <Text style={[styles.label, isDarkMode && styles.darkText]}>Descripción:</Text>
                 <TextInput
                   style={[styles.input, styles.inputMultiline, isDarkMode && styles.darkInput]}
                   placeholder="Descripción del Producto"
@@ -251,20 +339,18 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
                   onChangeText={setProductDescription}
                   multiline
                 />
-                
-                {/* En un futuro, aquí podrías añadir un selector de imagen */}
-                
+
                 <View style={styles.modalActions}>
-                  <Button 
-                    title={modalMode === 'add' ? 'Agregar' : 'Guardar Cambios'} 
-                    onPress={modalMode === 'add' ? handleAddProduct : handleUpdateProduct} 
+                  <Button
+                    title={modalMode === 'add' ? 'Agregar' : 'Guardar Cambios'}
+                    onPress={modalMode === 'add' ? handleAddProduct : handleUpdateProduct}
                     color="#2ecc71"
                   />
                   <Button title="Cancelar" onPress={closeModal} color="#e74c3c" />
                 </View>
               </>
             )}
-            
+
           </View>
         </View>
       </Modal>
@@ -272,14 +358,20 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
   );
 };
 
-// --- Product Card Component (Ajustado) ---
-// Simplificado para no mostrar descripción directamente en la tarjeta
-const ProductCard = ({ name, imageSource, onPress }) => (
-  <TouchableOpacity style={styles.productCard} onPress={onPress}>
-    <Image source={imageSource} style={styles.productImage} resizeMode="contain" />
-    <Text style={styles.productName} numberOfLines={2}>{name}</Text> {/* Limitar nombre a 2 líneas */}
-  </TouchableOpacity>
-);
+// --- Product Card Component (Asegurarse que maneja ambas fuentes) ---
+const ProductCard = ({ name, imageSource, onPress }) => {
+  const displayName = name || 'Producto';
+  // Image source puede ser require() o { uri: ... }, Image lo maneja
+  const sourceToShow = imageSource || PLACEHOLDER_IMAGE; // Mostrar placeholder si no hay imagen
+
+  return (
+    <TouchableOpacity style={styles.productCard} onPress={onPress}>
+      <Image source={sourceToShow} style={styles.productImage} resizeMode="contain" />
+      <Text style={styles.productName} numberOfLines={2}>{displayName}</Text>
+    </TouchableOpacity>
+  );
+};
+
 
 // --- FeatureCard Component (Sin Cambios) ---
 const FeatureCard = ({ title, iconName, description, isDarkMode, onPress }) => (
@@ -291,9 +383,9 @@ const FeatureCard = ({ title, iconName, description, isDarkMode, onPress }) => (
 );
 
 
-// --- Estilos (Añadir/Modificar estilos necesarios) ---
+// --- Estilos (Añadir/Modificar estilos para Image Picker) ---
 const styles = StyleSheet.create({
-  // ... (Estilos existentes: container, darkContainer, profileSection, etc.) ...
+  // ... (Todos los estilos anteriores) ...
   container: {
    flexGrow: 1,
    justifyContent: 'flex-start',
@@ -341,10 +433,7 @@ const styles = StyleSheet.create({
    width: '100%',
    alignItems: 'center',
    shadowColor: "#000",
-   shadowOffset: {
-    width: 0,
-    height: 2,
-   },
+   shadowOffset: { width: 0, height: 2, },
    shadowOpacity: 0.25,
    shadowRadius: 3.84,
    elevation: 5,
@@ -368,76 +457,71 @@ const styles = StyleSheet.create({
   inventoryContainer: {
     marginTop: 20,
     width: '90%',
-    backgroundColor: '#f9f9f9', // Un fondo ligeramente diferente
+    backgroundColor: '#f9f9f9',
     borderRadius: 15,
-    padding: 15, // Ajustar padding
-    // alignItems: 'center', // Quitar para que el header se alinee bien
+    padding: 15,
   },
-  // Estilo para el header del inventario (título + botón add)
   inventoryHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between', // Espacio entre título y botón
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 15,
-    width: '100%', // Ocupar todo el ancho del contenedor
+    width: '100%',
   },
   inventoryTitle: {
-    fontSize: 20, // Un poco más grande
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#0D47A1',
-    // marginBottom: 10, // Quitar margin bottom, ya está en el header
   },
   addButton: {
-    // Estilos para el botón de agregar si es necesario
-    padding: 5, // Área táctil
+    padding: 5,
   },
   productList: {
-    flexDirection: 'row', // Mantener en fila
-    flexWrap: 'wrap',     // Permitir que pasen a la siguiente línea
-    justifyContent: 'space-around', // Espacio alrededor de los items
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-around',
     width: '100%',
   },
   productCard: {
     backgroundColor: 'white',
-    borderRadius: 10, // Un poco menos redondeado
+    borderRadius: 10,
     padding: 10,
     marginBottom: 15,
-    width: '46%', // Para que quepan 2 por fila con espacio
+    width: '46%',
     alignItems: 'center',
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.20,
     shadowRadius: 1.41,
     elevation: 2,
-    minHeight: 180, // Altura mínima para consistencia
-    justifyContent: 'space-between', // Para que el texto no se pegue a la imagen
+    minHeight: 180,
+    justifyContent: 'space-between',
   },
   productImage: {
-    width: '90%', // Ajustar tamaño imagen
-    height: 100, // Altura fija para la imagen
+    width: '90%',
+    height: 100,
     borderRadius: 5,
-    marginBottom: 8, // Espacio bajo la imagen
+    marginBottom: 8,
+    backgroundColor: '#eee', // Fondo mientras carga o si falla
   },
   productName: {
-    fontSize: 14, // Tamaño ajustado
-    fontWeight: '600', // Un poco menos bold
+    fontSize: 14,
+    fontWeight: '600',
     textAlign: 'center',
-    color: '#333', // Color más oscuro
+    color: '#333',
   },
-  // productDescription YA NO SE USA EN LA TARJETA
-
   modalBackground: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)', // Más oscuro
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
   },
   modalContainer: {
     backgroundColor: 'white',
-    padding: 25, // Más padding
+    padding: 25,
     borderRadius: 15,
     alignItems: 'center',
-    width: '85%', // Un poco más ancho
+    width: '85%',
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
@@ -447,36 +531,36 @@ const styles = StyleSheet.create({
   darkModalContainer: {
     backgroundColor: '#2a2a2a'
   },
-  modalTitle: { // Estilo para título de Agregar/Editar
+  modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 20,
+    marginBottom: 20, // Ajustar espacio
     color: '#0D47A1',
   },
-  modalProductImage: {
-    width: 180, // Ligeramente más pequeño
+  modalProductImage: { // Imagen en modo VISTA
+    width: 180,
     height: 180,
     marginBottom: 15,
+    backgroundColor: '#eee', // Fondo placeholder
   },
   modalProductName: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 10,
-    textAlign: 'center', // Centrar nombre
+    textAlign: 'center',
   },
   modalProductDescription: {
-    fontSize: 15, // Ligeramente más pequeño
+    fontSize: 15,
     color: '#555',
     textAlign: 'center',
-    marginBottom: 20, // Más espacio antes de los botones
+    marginBottom: 20,
   },
-  modalActions: { // Contenedor para botones del modal
+  modalActions: {
     flexDirection: 'row',
-    justifyContent: 'space-around', // Espaciar botones uniformemente
-    width: '100%', // Ocupar todo el ancho
-    marginTop: 15, // Espacio arriba de los botones
+    justifyContent: 'space-around',
+    width: '100%',
+    marginTop: 20, // Aumentar espacio antes de botones
   },
-  // Estilos para Inputs del Formulario
   input: {
     width: '100%',
     borderWidth: 1,
@@ -484,18 +568,67 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 15,
     paddingVertical: 10,
-    marginBottom: 15,
+    marginBottom: 15, // Espacio después de cada input/label
     fontSize: 16,
   },
   inputMultiline: {
-    height: 100, // Altura para descripción
-    textAlignVertical: 'top', // Alinear texto arriba en multilínea
+    height: 100,
+    textAlignVertical: 'top',
   },
   darkInput: {
     backgroundColor: '#444',
     borderColor: '#666',
     color: 'white',
   },
+  // --- NUEVOS ESTILOS para Image Picker ---
+  label: { // Etiqueta para los campos del formulario
+      fontSize: 14,
+      color: '#333',
+      fontWeight: '500',
+      marginBottom: 5, // Espacio bajo la etiqueta
+      alignSelf: 'flex-start', // Alinear a la izquierda
+      marginLeft: 5, // Pequeño margen izquierdo
+  },
+  imagePickerContainer: {
+      width: '100%',
+      alignItems: 'center', // Centrar el contenido del picker
+      marginBottom: 15, // Espacio después del picker
+  },
+  imagePreviewContainer: {
+      borderWidth: 1,
+      borderColor: '#ccc',
+      borderRadius: 8,
+      width: 150, // Ancho del contenedor de preview
+      height: 150, // Alto del contenedor de preview
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: '#f0f0f0', // Fondo ligero
+      overflow: 'hidden', // Para que la imagen no se salga del borde redondeado
+      position: 'relative', // Para posicionar el texto encima
+  },
+  imagePreview: {
+      width: '100%',
+      height: '100%',
+  },
+  changeImageText: {
+      position: 'absolute',
+      bottom: 5,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      color: 'white',
+      fontSize: 10,
+      paddingHorizontal: 5,
+      paddingVertical: 2,
+      borderRadius: 4,
+  },
+  darkInput: { // Reutilizado para borde en modo oscuro
+      borderColor: '#666',
+      backgroundColor: '#333', // Fondo para input
+      color: 'white', // Texto del input
+  },
+  darkText: { // Reutilizado para labels
+      color: '#eee',
+  },
+  // --- Fin Nuevos Estilos ---
 
   logoutButton: {
     flexDirection: 'row',
@@ -541,7 +674,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  // ... (Asegúrate de incluir TODOS los demás estilos que tenías)
+   noProductsText: {
+      width: '100%',
+      textAlign: 'center',
+      marginTop: 20,
+      fontSize: 16,
+      color: '#666',
+   },
+
 });
 
 export default HomeScreen;
