@@ -10,10 +10,21 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const { width, height } = Dimensions.get("window");
 
 // --- Helper Functions ---
-const checkPasswordStrengthValue = (password) => {
-    if (password.length < 6) return "Débil";
-    if (password.length < 10) return "Moderada";
-    return "Fuerte";
+const validatePassword = (password) => {
+    const minLength = 8; // Puedes ajustar la longitud mínima
+    const hasUppercase = /[A-Z]/.test(password);
+    const hasLowercase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecialChar = /[!@#$%^&*()_+{}\[\]:;<>,.?~\\/-]/.test(password); // Amplié los caracteres especiales
+
+    const errors = [];
+    if (password.length < minLength) errors.push(`Debe tener al menos ${minLength} caracteres.`);
+    if (!hasUppercase) errors.push("Debe incluir al menos una mayúscula.");
+    if (!hasLowercase) errors.push("Debe incluir al menos una minúscula.");
+    if (!hasNumber) errors.push("Debe incluir al menos un número.");
+    if (!hasSpecialChar) errors.push("Debe incluir al menos un carácter especial.");
+
+    return errors;
 };
 
 const validateEmailFormat = (email) => /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/.test(email);
@@ -27,12 +38,21 @@ const RegisterScreen = ({ onNavigateToLogin, onRegisterSuccess, isDarkMode }) =>
     const [isChecked, setIsChecked] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [emailError, setEmailError] = useState("");
-    const [passwordStrength, setPasswordStrength] = useState("");
+    const [passwordErrors, setPasswordErrors] = useState([]); // Estado para los errores de contraseña
 
     const handleRegister = async () => {
         // Removed username check
         if (!email || !password) {
             Alert.alert("Error", "Por favor, ingresa todos los campos");
+            return;
+        }
+        if (emailError) {
+            Alert.alert("Error", "Por favor, ingresa un correo electrónico válido.");
+            return;
+        }
+        const passwordValidationErrors = validatePassword(password);
+        if (passwordValidationErrors.length > 0) {
+            Alert.alert("Error de Contraseña", passwordValidationErrors.join('\n'));
             return;
         }
         if (!isChecked) {
@@ -45,14 +65,14 @@ const RegisterScreen = ({ onNavigateToLogin, onRegisterSuccess, isDarkMode }) =>
             const existingUsers = await AsyncStorage.getItem('users');
             const users = existingUsers ? JSON.parse(existingUsers) : [];
 
-            if (users.some(user => user.email === email)) {
+            if (users.some(user => user.email.toLowerCase() === email.toLowerCase())) {
                 Alert.alert("Error", "Este correo electrónico ya está registrado.");
                 setIsLoading(false);
                 return;
             }
 
             // Removed username from the user object
-            const newUser = { email, password };
+            const newUser = { email, password }; // Por ahora seguimos guardando la contraseña (¡recuerda el hashing!)
 
             users.push(newUser);
             await AsyncStorage.setItem('users', JSON.stringify(users));
@@ -68,45 +88,35 @@ const RegisterScreen = ({ onNavigateToLogin, onRegisterSuccess, isDarkMode }) =>
         }
     };
 
-
-
     const openPrivacyPolicy = () => {
         Alert.alert(
-          "Aviso de Privacidad (Resumido)",
-          "En TechSolutions, valoramos su privacidad. Este resumen explica cómo manejamos su información en la app [Nombre de la App]:\n\n" +
-      
-          "1. Información Recopilada:\n" +
-          "   - Al registrarse: Correo electrónico y contraseña.\n" +
-          "   - Uso de la App: Datos de uso anónimos para mejoras.\n" +
-          "   - Dispositivo: Información básica del dispositivo (modelo, SO) para soporte y compatibilidad. NO recopilamos datos de ubicación.\n\n" +
-      
-          "2. Uso de la Información:\n" +
-          "   - Para proveer y mejorar la App.\n" +
-          "   - Para autenticar su cuenta.\n" +
-          "   - Para comunicarnos con usted (puede optar por no recibir ciertas comunicaciones).\n\n" +
-      
-          "3. No Compartimos su Información:\n" +
-          "   - No vendemos ni compartimos su información personal con terceros para marketing.\n" +
-          "   - Podemos compartirla con proveedores de servicios que nos ayudan a operar la App (bajo obligación de confidencialidad).\n" +
-          "   - Podemos divulgarla si es requerido por ley.\n\n" +
-      
-          "4. Seguridad:\n" +
-          "   - Tomamos medidas de seguridad, pero ninguna transmisión por Internet es 100% segura.\n" +
-          "   - Proteja su contraseña.\n\n" +
-      
-          "5. Sus Derechos:\n" +
-          "   - Puede acceder, corregir o eliminar su información. Contáctenos a [techsolutions@info.com].\n\n" +
-      
-          "6. Cambios:\n" +
-          "   - Este aviso puede cambiar. Le notificaremos de cambios importantes.\n\n" +
-      
-          "7. Contacto:\n" +
-          "   - Preguntas: [techsolutions@info.com].\n\n" +
-          " ", // VERY important if you have a longer version.
-      
-          [{ text: "Aceptar", style: "default" }]
+            "Aviso de Privacidad (Resumido)",
+            "En TechSolutions, valoramos su privacidad. Este resumen explica cómo manejamos su información en la app [Nombre de la App]:\n\n" +
+            "1. Información Recopilada:\n" +
+            "   - Al registrarse: Correo electrónico y contraseña.\n" +
+            "   - Uso de la App: Datos de uso anónimos para mejoras.\n" +
+            "   - Dispositivo: Información básica del dispositivo (modelo, SO) para soporte y compatibilidad. NO recopilamos datos de ubicación.\n\n" +
+            "2. Uso de la Información:\n" +
+            "   - Para proveer y mejorar la App.\n" +
+            "   - Para autenticar su cuenta.\n" +
+            "   - Para comunicarnos con usted (puede optar por no recibir ciertas comunicaciones).\n\n" +
+            "3. No Compartimos su Información:\n" +
+            "   - No vendemos ni compartimos su información personal con terceros para marketing.\n" +
+            "   - Podemos compartirla con proveedores de servicios que nos ayudan a operar la App (bajo obligación de confidencialidad).\n" +
+            "   - Podemos divulgarla si es requerido por ley.\n\n" +
+            "4. Seguridad:\n" +
+            "   - Tomamos medidas de seguridad, pero ninguna transmisión por Internet es 100% segura.\n" +
+            "   - Proteja su contraseña.\n\n" +
+            "5. Sus Derechos:\n" +
+            "   - Puede acceder, corregir o eliminar su información. Contáctenos a [techsolutions@info.com].\n\n" +
+            "6. Cambios:\n" +
+            "   - Este aviso puede cambiar. Le notificaremos de cambios importantes.\n\n" +
+            "7. Contacto:\n" +
+            "   - Preguntas: [techsolutions@info.com].\n\n" +
+            " ", // VERY important if you have a longer version.
+            [{ text: "Aceptar", style: "default" }]
         );
-      };
+    };
 
     return (
         <View style={[styles.container, isDarkMode && styles.darkContainer]}>
@@ -137,20 +147,24 @@ const RegisterScreen = ({ onNavigateToLogin, onRegisterSuccess, isDarkMode }) =>
                     value={password}
                     onChangeText={(text) => {
                         setPassword(text);
-                        setPasswordStrength(checkPasswordStrengthValue(text));
+                        setPasswordErrors(validatePassword(text)); // Validar al cambiar la contraseña
                     }}
                     isPassword={true}
                     showPassword={showPassword}
                     setShowPassword={setShowPassword}
                     isDarkMode={isDarkMode}
                 />
-                <View style={[styles.passwordStrengthContainer, isDarkMode && styles.darkPasswordStrengthContainer]}>
-                    <Text style={[styles.passwordStrengthText, isDarkMode && styles.darkText]}>{passwordStrength}</Text>
-                </View>
+                {passwordErrors.length > 0 && (
+                    <View style={[styles.passwordErrorsContainer, isDarkMode && styles.darkPasswordErrorsContainer]}>
+                        {passwordErrors.map((error, index) => (
+                            <Text key={index} style={[styles.errorText, isDarkMode && styles.darkErrorText]}>{error}</Text>
+                        ))}
+                    </View>
+                )}
 
                 <PrivacyPolicyLink isDarkMode={isDarkMode} isChecked={isChecked} setIsChecked={setIsChecked} openPrivacyPolicy={openPrivacyPolicy} />
 
-                <FormButton title="Registrarse" onPress={handleRegister} isDarkMode={isDarkMode} disabled={!isChecked} isLoading={isLoading} />
+                <FormButton title="Registrarse" onPress={handleRegister} isDarkMode={isDarkMode} disabled={!isChecked || emailError || passwordErrors.length > 0} isLoading={isLoading} />
                 <TouchableOpacity onPress={onNavigateToLogin}>
                     <Text style={[styles.link, isDarkMode && styles.darkText]}>¿Ya tienes cuenta? Inicia sesión</Text>
                 </TouchableOpacity>

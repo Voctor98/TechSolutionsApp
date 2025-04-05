@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker'; // Importar ImagePicker
+import AsyncStorage from '@react-native-async-storage/async-storage'; // Importar AsyncStorage
 
 // --- Datos Iniciales (sin cambios por ahora) ---
 const INITIAL_PRODUCTS = [
@@ -37,6 +38,7 @@ const INITIAL_PRODUCTS = [
   },
 ];
 const PLACEHOLDER_IMAGE = require('./assets/profile-placeholder.png'); // Define tu placeholder
+const PRODUCTS_STORAGE_KEY = 'products'; // Clave para guardar los productos en AsyncStorage
 
 // --- Componente HomeScreen ---
 const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
@@ -53,6 +55,39 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
   // Guarda la URI de la imagen seleccionada en el formulario (o null)
   const [productImageUri, setProductImageUri] = useState(null);
 
+  // --- Efecto para cargar los productos al montar el componente ---
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  // --- Efecto para guardar los productos cada vez que cambian ---
+  useEffect(() => {
+    saveProducts();
+  }, [products]);
+
+  // --- Función para cargar los productos desde AsyncStorage ---
+  const loadProducts = async () => {
+    try {
+      const storedProducts = await AsyncStorage.getItem(PRODUCTS_STORAGE_KEY);
+      if (storedProducts) {
+        setProducts(JSON.parse(storedProducts));
+      }
+    } catch (error) {
+      console.error('Error loading products from AsyncStorage:', error);
+      Alert.alert('Error', 'Hubo un problema al cargar los productos.');
+    }
+  };
+
+  // --- Función para guardar los productos en AsyncStorage ---
+  const saveProducts = async () => {
+    try {
+      await AsyncStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(products));
+    } catch (error) {
+      console.error('Error saving products to AsyncStorage:', error);
+      Alert.alert('Error', 'Hubo un problema al guardar los productos.');
+    }
+  };
+
   // --- Función para Seleccionar Imagen ---
   const pickImage = async () => {
     // Pedir permiso para acceder a la galería
@@ -66,8 +101,8 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images, // Solo imágenes
       allowsEditing: true, // Permitir recortar/editar
-      aspect: [4, 3],      // Proporción (opcional)
-      quality: 0.8,        // Calidad (0 a 1)
+      aspect: [4, 3],       // Proporción (opcional)
+      quality: 0.8,         // Calidad (0 a 1)
     });
 
     // console.log(result); // Para depurar y ver la estructura del resultado
@@ -142,7 +177,7 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
   };
 
   const handleUpdateProduct = () => {
-     if (!productName || !productDescription || !selectedProduct) {
+      if (!productName || !productDescription || !selectedProduct) {
       Alert.alert('Error', 'Datos incompletos para actualizar.');
       return;
     }
@@ -207,30 +242,30 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
     <ScrollView contentContainerStyle={[styles.container, isDarkMode && styles.darkContainer]}>
       {/* ... (Sección de Perfil, FeatureCard, Botón Usuarios - sin cambios) ... */}
         <View style={[styles.profileSection, isDarkMode && styles.darkProfileSection]}>
-         <Image
-           source={require('./assets/profile-placeholder.png')}
-           style={styles.profileImage}
-         />
-         <Text style={[styles.welcomeText, isDarkMode && styles.darkText]}>Te damos la bienvenida a TechSolutionsApp</Text>
-       </View>
+          <Image
+            source={require('./assets/profile-placeholder.png')}
+            style={styles.profileImage}
+          />
+          <Text style={[styles.welcomeText, isDarkMode && styles.darkText]}>Te damos la bienvenida a TechSolutionsApp</Text>
+        </View>
 
-       <View style={styles.contentArea}>
-         <FeatureCard
-           title="Productos"
-           description="Gestiona tus productos electrónicos."
-           isDarkMode={isDarkMode}
-           iconName="basket-outline"
-           onPress={toggleInventory}
-         />
+        <View style={styles.contentArea}>
+          <FeatureCard
+            title="Productos"
+            description="Gestiona tus productos electrónicos."
+            isDarkMode={isDarkMode}
+            iconName="basket-outline"
+            onPress={toggleInventory}
+          />
 
-         <TouchableOpacity style={[styles.viewUsersButton, isDarkMode && styles.darkButton]} onPress={onNavigateToUsers}>
-           <Text style={[styles.viewUsersButtonText, isDarkMode && styles.darkText]}>Ver usuarios registrados</Text>
-         </TouchableOpacity>
-       </View>
+          <TouchableOpacity style={[styles.viewUsersButton, isDarkMode && styles.darkButton]} onPress={onNavigateToUsers}>
+            <Text style={[styles.viewUsersButtonText, isDarkMode && styles.darkText]}>Ver usuarios registrados</Text>
+          </TouchableOpacity>
+        </View>
 
 
       {/* --- Sección de Inventario (sin cambios relevantes en la estructura) --- */}
-        {showInventory && (
+       {showInventory && (
           <View style={styles.inventoryContainer}>
             <View style={styles.inventoryHeader}>
               <Text style={[styles.inventoryTitle, isDarkMode && styles.darkText]}>Inventario</Text>
@@ -242,8 +277,8 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
             <View style={styles.productList}>
               {products.length > 0 ? (
                 products.map((product) => (
-                   product && product.id ? ( // Check added previously
-                    <ProductCard
+                    product && product.id ? ( // Check added previously
+                     <ProductCard
                       key={product.id}
                       name={product.name}
                       // imageSource puede ser require() o {uri: ...}, ProductCard lo debe manejar
@@ -253,9 +288,9 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
                   ) : null
                 ))
               ) : (
-                 <Text style={[styles.noProductsText, isDarkMode && styles.darkText]}>
-                    No hay productos para mostrar.
-                 </Text>
+                <Text style={[styles.noProductsText, isDarkMode && styles.darkText]}>
+                  No hay productos para mostrar.
+                </Text>
               )}
             </View>
           </View>
@@ -265,7 +300,7 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
        <TouchableOpacity style={[styles.logoutButton, isDarkMode && styles.darkLogoutButton]} onPress={onLogout}>
         <Ionicons name="log-out-outline" size={24} color={isDarkMode ? "black" : "white"} />
         <Text style={[styles.logoutButtonText, isDarkMode && styles.darkLogoutText]}>Salir</Text>
-       </TouchableOpacity>
+      </TouchableOpacity>
 
 
       {/* --- Modal Unificado (Ajustado para Imagen) --- */}
@@ -287,7 +322,7 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
                     source={selectedProduct.imageSource || PLACEHOLDER_IMAGE}
                     style={styles.modalProductImage}
                     resizeMode="contain"
-                 />
+                  />
                 <Text style={[styles.modalProductName, isDarkMode && styles.darkText]}>{selectedProduct.name}</Text>
                 <Text style={[styles.modalProductDescription, isDarkMode && styles.darkText]}>{selectedProduct.description}</Text>
                 <View style={styles.modalActions}>
@@ -305,8 +340,8 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
                   {modalMode === 'add' ? 'Agregar Producto' : 'Editar Producto'}
                 </Text>
 
-                 {/* --- Preview de Imagen y Botón para Seleccionar --- */}
-                 <View style={styles.imagePickerContainer}>
+                  {/* --- Preview de Imagen y Botón para Seleccionar --- */}
+                  <View style={styles.imagePickerContainer}>
                     <Text style={[styles.label, isDarkMode && styles.darkText]}>Imagen:</Text>
                     <TouchableOpacity onPress={pickImage} style={styles.imagePreviewContainer}>
                         <Image
@@ -316,7 +351,7 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
                         />
                         <Text style={styles.changeImageText}>Toca para cambiar</Text>
                     </TouchableOpacity>
-                 </View>
+                  </View>
 
 
                 {/* Campo Nombre */}
@@ -330,7 +365,7 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
                 />
 
                 {/* Campo Descripción */}
-                 <Text style={[styles.label, isDarkMode && styles.darkText]}>Descripción:</Text>
+                  <Text style={[styles.label, isDarkMode && styles.darkText]}>Descripción:</Text>
                 <TextInput
                   style={[styles.input, styles.inputMultiline, isDarkMode && styles.darkInput]}
                   placeholder="Descripción del Producto"
@@ -383,83 +418,94 @@ const FeatureCard = ({ title, iconName, description, isDarkMode, onPress }) => (
 );
 
 
-// --- Estilos (Añadir/Modificar estilos para Image Picker) ---
 const styles = StyleSheet.create({
-  // ... (Todos los estilos anteriores) ...
   container: {
-   flexGrow: 1,
-   justifyContent: 'flex-start',
-   alignItems: 'center',
-   backgroundColor: '#F4F7FC',
-   paddingVertical: 20,
+    flexGrow: 1,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    backgroundColor: '#F4F7FC',
+    paddingVertical: 20,
   },
   darkContainer: {
-   backgroundColor: '#121212',
+    backgroundColor: '#121212',
   },
   profileSection: {
-   alignItems: 'center',
-   marginBottom: 30,
-   marginTop: 20,
+    alignItems: 'center',
+    marginBottom: 30,
+    marginTop: 20,
   },
   darkProfileSection: {
-   backgroundColor: '#1E1E1E',
-   padding: 10,
-   borderRadius: 15,
-   marginBottom: 10
+    backgroundColor: '#1E1E1E',
+    padding: 15,
+    borderRadius: 20,
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 5,
   },
   profileImage: {
-   width: 100,
-   height: 100,
-   borderRadius: 50,
-   marginBottom: 10,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#0D47A1',
   },
   welcomeText: {
-   fontSize: 24,
-   fontWeight: 'bold',
-   color: '#0D47A1',
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#0D47A1',
+    marginTop: 15,
   },
   darkText: {
-   color: '#FFFFFF',
+    color: '#FFFFFF',
   },
   contentArea: {
-   width: '90%',
-   alignItems: 'center',
+    width: '90%',
+    alignItems: 'center',
   },
   card: {
-   backgroundColor: 'white',
-   borderRadius: 15,
-   padding: 20,
-   marginBottom: 20,
-   width: '100%',
-   alignItems: 'center',
-   shadowColor: "#000",
-   shadowOffset: { width: 0, height: 2, },
-   shadowOpacity: 0.25,
-   shadowRadius: 3.84,
-   elevation: 5,
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 6,
   },
   darkCard: {
-   backgroundColor: "#333333",
-   shadowColor: "#fff"
+    backgroundColor: "#333333",
+    shadowColor: "#fff",
   },
   cardTitle: {
-   fontSize: 18,
-   fontWeight: 'bold',
-   marginTop: 10,
-   color: '#0D47A1',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 10,
+    color: '#0D47A1',
   },
   cardDescription: {
-   fontSize: 14,
-   marginTop: 5,
-   textAlign: 'center',
-   color: '#666',
+    fontSize: 15,
+    marginTop: 5,
+    textAlign: 'center',
+    color: '#777',
   },
   inventoryContainer: {
     marginTop: 20,
     width: '90%',
     backgroundColor: '#f9f9f9',
-    borderRadius: 15,
-    padding: 15,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 6,
   },
   inventoryHeader: {
     flexDirection: 'row',
@@ -469,12 +515,12 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   inventoryTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#0D47A1',
   },
   addButton: {
-    padding: 5,
+    padding: 8,
   },
   productList: {
     flexDirection: 'row',
@@ -484,28 +530,28 @@ const styles = StyleSheet.create({
   },
   productCard: {
     backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 15,
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 20,
     width: '46%',
     alignItems: 'center',
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.20,
-    shadowRadius: 1.41,
-    elevation: 2,
-    minHeight: 180,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+    minHeight: 200,
     justifyContent: 'space-between',
   },
   productImage: {
     width: '90%',
-    height: 100,
-    borderRadius: 5,
-    marginBottom: 8,
-    backgroundColor: '#eee', // Fondo mientras carga o si falla
+    height: 110,
+    borderRadius: 10,
+    marginBottom: 10,
+    backgroundColor: '#eee',
   },
   productName: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
     color: '#333',
@@ -514,65 +560,66 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContainer: {
     backgroundColor: 'white',
-    padding: 25,
-    borderRadius: 15,
+    padding: 30,
+    borderRadius: 20,
     alignItems: 'center',
     width: '85%',
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
   },
   darkModalContainer: {
-    backgroundColor: '#2a2a2a'
+    backgroundColor: '#2a2a2a',
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 20, // Ajustar espacio
+    marginBottom: 25,
     color: '#0D47A1',
   },
-  modalProductImage: { // Imagen en modo VISTA
-    width: 180,
-    height: 180,
-    marginBottom: 15,
-    backgroundColor: '#eee', // Fondo placeholder
+  modalProductImage: {
+    width: 190,
+    height: 190,
+    marginBottom: 20,
+    backgroundColor: '#eee',
   },
   modalProductName: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 12,
     textAlign: 'center',
+    color: '#333',
   },
   modalProductDescription: {
-    fontSize: 15,
-    color: '#555',
+    fontSize: 16,
+    color: '#666',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 25,
   },
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     width: '100%',
-    marginTop: 20, // Aumentar espacio antes de botones
+    marginTop: 25,
   },
   input: {
     width: '100%',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    marginBottom: 15, // Espacio después de cada input/label
+    borderWidth: 1.5,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    marginBottom: 18,
     fontSize: 16,
   },
   inputMultiline: {
-    height: 100,
+    height: 120,
     textAlignVertical: 'top',
   },
   darkInput: {
@@ -580,108 +627,89 @@ const styles = StyleSheet.create({
     borderColor: '#666',
     color: 'white',
   },
-  // --- NUEVOS ESTILOS para Image Picker ---
-  label: { // Etiqueta para los campos del formulario
-      fontSize: 14,
-      color: '#333',
-      fontWeight: '500',
-      marginBottom: 5, // Espacio bajo la etiqueta
-      alignSelf: 'flex-start', // Alinear a la izquierda
-      marginLeft: 5, // Pequeño margen izquierdo
+  label: {
+    fontSize: 16,
+    color: '#444',
+    fontWeight: '600',
+    marginBottom: 8,
+    alignSelf: 'flex-start',
+    marginLeft: 8,
   },
   imagePickerContainer: {
-      width: '100%',
-      alignItems: 'center', // Centrar el contenido del picker
-      marginBottom: 15, // Espacio después del picker
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 18,
   },
   imagePreviewContainer: {
-      borderWidth: 1,
-      borderColor: '#ccc',
-      borderRadius: 8,
-      width: 150, // Ancho del contenedor de preview
-      height: 150, // Alto del contenedor de preview
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: '#f0f0f0', // Fondo ligero
-      overflow: 'hidden', // Para que la imagen no se salga del borde redondeado
-      position: 'relative', // Para posicionar el texto encima
+    borderWidth: 2,
+    borderColor: '#ccc',
+    borderRadius: 10,
+    width: 160,
+    height: 160,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f4f4f4',
+    overflow: 'hidden',
+    position: 'relative',
   },
   imagePreview: {
-      width: '100%',
-      height: '100%',
+    width: '100%',
+    height: '100%',
   },
   changeImageText: {
-      position: 'absolute',
-      bottom: 5,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      color: 'white',
-      fontSize: 10,
-      paddingHorizontal: 5,
-      paddingVertical: 2,
-      borderRadius: 4,
+    position: 'absolute',
+    bottom: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    color: 'white',
+    fontSize: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
-  darkInput: { // Reutilizado para borde en modo oscuro
-      borderColor: '#666',
-      backgroundColor: '#333', // Fondo para input
-      color: 'white', // Texto del input
-  },
-  darkText: { // Reutilizado para labels
-      color: '#eee',
-  },
-  // --- Fin Nuevos Estilos ---
-
   logoutButton: {
     flexDirection: 'row',
     backgroundColor: "#0D47A1",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 22,
+    borderRadius: 12,
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 15,
     marginBottom: 20,
     shadowColor: "#0D47A1",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
   },
   darkLogoutButton: {
-    backgroundColor: "white"
+    backgroundColor: "white",
   },
   logoutButtonText: {
-    marginLeft: 10,
+    marginLeft: 12,
     color: "white",
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "bold",
   },
-  darkLogoutText: {
-    color: "black"
-  },
   viewUsersButton: {
-    backgroundColor: '#2ecc71',
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderRadius: 8,
-    marginTop: 10,
-    marginBottom: 15
-  },
-  darkButton: {
-    backgroundColor: "#3498db",
-    shadowColor: "#fff",
+    backgroundColor: '#27AE60',
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    marginTop: 15,
+    marginBottom: 20,
   },
   viewUsersButtonText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
   },
-   noProductsText: {
-      width: '100%',
-      textAlign: 'center',
-      marginTop: 20,
-      fontSize: 16,
-      color: '#666',
-   },
-
+  noProductsText: {
+    width: '100%',
+    textAlign: 'center',
+    marginTop: 25,
+    fontSize: 18,
+    color: '#777',
+  },
 });
 
 export default HomeScreen;
