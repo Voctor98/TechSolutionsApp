@@ -9,40 +9,39 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
-  Platform // Importar Platform para verificar el sistema operativo si es necesario para permisos
+  Alert, // Asegúrate de que Alert está importado
+  Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker'; // Importar ImagePicker
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Importar AsyncStorage
+import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// --- Datos Iniciales (sin cambios por ahora) ---
+// --- Datos Iniciales (sin cambios) ---
 const INITIAL_PRODUCTS = [
   {
     id: '1',
     name: 'Monitor Dell UltraSharp U2718Q',
     description: 'Este monitor cuenta con tecnología HDR...',
-    imageSource: require('./assets/product1.jpg'), // require ID (number)
+    imageSource: require('./assets/product1.jpg'),
   },
   {
     id: '2',
     name: 'Mouse Logitech G203',
     description: 'El Logitech G203 es un ratón para gaming...',
-    imageSource: require('./assets/product2.jpg'), // require ID (number)
+    imageSource: require('./assets/product2.jpg'),
   },
   {
     id: '3',
     name: 'Samsung Galaxy S21',
     description: 'Cuenta con una pantalla Dynamic AMOLED 2X...',
-    imageSource: require('./assets/product3.jpg'), // require ID (number)
+    imageSource: require('./assets/product3.jpg'),
   },
 ];
-const PLACEHOLDER_IMAGE = require('./assets/profile-placeholder.png'); // Define tu placeholder
-const PRODUCTS_STORAGE_KEY = 'products'; // Clave para guardar los productos en AsyncStorage
+const PLACEHOLDER_IMAGE = require('./assets/profile-placeholder.png');
+const PRODUCTS_STORAGE_KEY = 'products';
 
 // --- Componente HomeScreen ---
 const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
-  // ... (estados existentes: showInventory, products, modalVisible, selectedProduct, modalMode, productName, productDescription) ...
   const [showInventory, setShowInventory] = useState(false);
   const [products, setProducts] = useState(INITIAL_PRODUCTS);
   const [modalVisible, setModalVisible] = useState(false);
@@ -50,83 +49,90 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
   const [modalMode, setModalMode] = useState('view');
   const [productName, setProductName] = useState('');
   const [productDescription, setProductDescription] = useState('');
-
-  // --- NUEVO ESTADO ---
-  // Guarda la URI de la imagen seleccionada en el formulario (o null)
   const [productImageUri, setProductImageUri] = useState(null);
 
-  // --- Efecto para cargar los productos al montar el componente ---
   useEffect(() => {
     loadProducts();
   }, []);
 
-  // --- Efecto para guardar los productos cada vez que cambian ---
   useEffect(() => {
-    saveProducts();
+    // Evitar guardar el estado inicial si es el mismo que INITIAL_PRODUCTS
+    // Esto previene una escritura innecesaria al inicio si loadProducts no encontró nada.
+    // Una comparación profunda podría ser más robusta si INITIAL_PRODUCTS es complejo.
+    if (JSON.stringify(products) !== JSON.stringify(INITIAL_PRODUCTS)) {
+       saveProducts();
+    }
   }, [products]);
 
-  // --- Función para cargar los productos desde AsyncStorage ---
   const loadProducts = async () => {
     try {
       const storedProducts = await AsyncStorage.getItem(PRODUCTS_STORAGE_KEY);
       if (storedProducts) {
-        setProducts(JSON.parse(storedProducts));
+        // Parsear productos y asegurar que imageSource sea correcto
+        const loadedProducts = JSON.parse(storedProducts).map(p => ({
+          ...p,
+          // Si imageSource no tiene 'uri', podría ser un require ID (aunque no se guarda bien así)
+          // O si se guardó mal. Asegurémonos de que sea un objeto { uri: ... } si no es un require
+          // Esta lógica puede necesitar ajuste dependiendo de cómo guardaste antes
+          imageSource: typeof p.imageSource === 'number' ? p.imageSource : // Mantener si es require ID (raro desde storage)
+                       (p.imageSource && p.imageSource.uri) ? p.imageSource : PLACEHOLDER_IMAGE // Usar URI o placeholder
+        }));
+        setProducts(loadedProducts);
+      } else {
+        // Si no hay nada guardado, usa los productos iniciales
+        setProducts(INITIAL_PRODUCTS);
       }
     } catch (error) {
       console.error('Error loading products from AsyncStorage:', error);
       Alert.alert('Error', 'Hubo un problema al cargar los productos.');
+       // En caso de error, quizás es mejor empezar con los iniciales
+       setProducts(INITIAL_PRODUCTS);
     }
   };
 
-  // --- Función para guardar los productos en AsyncStorage ---
   const saveProducts = async () => {
     try {
-      await AsyncStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(products));
+      // Solo guardar productos que tienen id (previene guardar null/undefined si algo sale mal)
+      const productsToSave = products.filter(p => p && p.id);
+      await AsyncStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(productsToSave));
     } catch (error) {
       console.error('Error saving products to AsyncStorage:', error);
       Alert.alert('Error', 'Hubo un problema al guardar los productos.');
     }
   };
 
-  // --- Función para Seleccionar Imagen ---
   const pickImage = async () => {
-    // Pedir permiso para acceder a la galería
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permiso denegado', 'Necesitamos permiso para acceder a tus fotos.');
       return;
     }
 
-    // Lanzar el selector de imágenes
     let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images, // Solo imágenes
-      allowsEditing: true, // Permitir recortar/editar
-      aspect: [4, 3],       // Proporción (opcional)
-      quality: 0.8,         // Calidad (0 a 1)
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
     });
 
-    // console.log(result); // Para depurar y ver la estructura del resultado
-
     if (!result.canceled) {
-      // En SDK >= 48, la URI está en result.assets[0].uri
-      // En SDK < 48, estaba en result.uri
       const selectedUri = result.assets && result.assets.length > 0 ? result.assets[0].uri : result.uri;
       if (selectedUri) {
-        setProductImageUri(selectedUri); // Guardar la URI en el estado del formulario
+        setProductImageUri(selectedUri);
       }
     }
   };
-
 
   const toggleInventory = () => {
     setShowInventory(!showInventory);
   };
 
-  // --- Funciones para Abrir el Modal (Ajustadas) ---
   const handleProductPress = (product) => {
     setSelectedProduct(product);
     setModalMode('view');
-    // No necesitamos setear productImageUri aquí, se usa solo para add/edit
+    setProductName(''); // Resetear campos del form por si acaso
+    setProductDescription('');
+    setProductImageUri(null);
     setModalVisible(true);
   };
 
@@ -134,7 +140,7 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
     setSelectedProduct(null);
     setProductName('');
     setProductDescription('');
-    setProductImageUri(null); // Resetear URI de imagen para nuevo producto
+    setProductImageUri(null);
     setModalMode('add');
     setModalVisible(true);
   };
@@ -143,23 +149,24 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
     setSelectedProduct(product);
     setProductName(product.name);
     setProductDescription(product.description);
-    // Si el producto existente tiene una URI, mostrarla, si no (es require), mostrar null (o la imagen original via selectedProduct)
-    setProductImageUri(typeof product.imageSource === 'object' ? product.imageSource.uri : null);
+    // Si la imagen existente es una URI, la ponemos en productImageUri para mostrarla
+    // Si es un require(), productImageUri se queda null, y getPreviewImageSource usará selectedProduct.imageSource
+    setProductImageUri(product.imageSource && typeof product.imageSource !== 'number' ? product.imageSource.uri : null);
     setModalMode('edit');
     setModalVisible(true);
   };
 
-  // --- Función para Cerrar el Modal (Ajustada) ---
   const closeModal = () => {
     setModalVisible(false);
+    // Es buena práctica resetear todo al cerrar, independientemente del modo
     setSelectedProduct(null);
     setModalMode('view');
     setProductName('');
     setProductDescription('');
-    setProductImageUri(null); // Resetear URI al cerrar
+    setProductImageUri(null);
   };
 
-  // --- Funciones CRUD (Ajustadas) ---
+  // --- Función AGREGAR con Alerta ---
   const handleAddProduct = () => {
     if (!productName || !productDescription) {
       Alert.alert('Error', 'Por favor, completa nombre y descripción.');
@@ -169,13 +176,20 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
       id: Date.now().toString(),
       name: productName,
       description: productDescription,
-      // Usar la URI seleccionada si existe, si no, usar el placeholder
       imageSource: productImageUri ? { uri: productImageUri } : PLACEHOLDER_IMAGE,
     };
     setProducts([...products, newProduct]);
-    closeModal();
+
+    // --- ALERTA DE ÉXITO ---
+    Alert.alert(
+      'Producto Agregado',
+      'El nuevo producto se ha guardado correctamente.',
+      [{ text: 'OK', onPress: () => closeModal() }] // Cierra el modal al presionar OK
+    );
+    // Ya no llamamos a closeModal() directamente aquí
   };
 
+  // --- Función ACTUALIZAR con Alerta ---
   const handleUpdateProduct = () => {
       if (!productName || !productDescription || !selectedProduct) {
       Alert.alert('Error', 'Datos incompletos para actualizar.');
@@ -184,24 +198,29 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
     setProducts(
       products.map((p) => {
         if (p.id === selectedProduct.id) {
-          // Crear el producto actualizado
           const updatedProduct = {
-            ...p, // Copiar propiedades existentes
+            ...p,
             name: productName,
             description: productDescription,
           };
-          // Solo actualizar imageSource si se seleccionó una NUEVA imagen (productImageUri tiene valor)
+          // Actualizar imagen SOLO si se seleccionó una NUEVA (productImageUri tiene valor)
           if (productImageUri) {
             updatedProduct.imageSource = { uri: productImageUri };
           }
-          // Si no se seleccionó nueva imagen (productImageUri es null),
-          // se mantiene el p.imageSource original gracias al spread operator (...)
+          // Si no hay productImageUri nuevo, se mantiene la imagen original (p.imageSource)
           return updatedProduct;
         }
-        return p; // Devolver los otros productos sin cambios
+        return p;
       })
     );
-    closeModal();
+
+    // --- ALERTA DE ÉXITO ---
+    Alert.alert(
+      'Producto Actualizado',
+      'Los cambios en el producto se han guardado correctamente.',
+      [{ text: 'OK', onPress: () => closeModal() }] // Cierra el modal al presionar OK
+    );
+    // Ya no llamamos a closeModal() directamente aquí
   };
 
  const handleDeleteProduct = (productId) => {
@@ -214,7 +233,12 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
           text: 'Eliminar',
           onPress: () => {
             setProducts(products.filter((p) => p.id !== productId));
-            closeModal();
+            // Si el modal estaba abierto viendo este producto, cerrarlo también
+            if (selectedProduct && selectedProduct.id === productId) {
+                 closeModal();
+            }
+             // Podrías añadir una alerta de éxito de eliminación aquí si quieres
+             // Alert.alert('Eliminado', 'El producto ha sido eliminado.');
           },
           style: 'destructive',
         },
@@ -222,102 +246,94 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
     );
   };
 
-  // --- Determinar qué imagen mostrar en la preview del formulario ---
   const getPreviewImageSource = () => {
-    // Prioridad 1: Nueva imagen seleccionada en el form (URI)
     if (productImageUri) {
       return { uri: productImageUri };
     }
-    // Prioridad 2: Imagen existente del producto que se está editando
     if (modalMode === 'edit' && selectedProduct && selectedProduct.imageSource) {
-      // selectedProduct.imageSource puede ser require() o { uri: ... }, Image lo maneja
-      return selectedProduct.imageSource;
+      return selectedProduct.imageSource; // Puede ser require() o { uri: ... }
     }
-    // Prioridad 3: Placeholder para modo 'add' o si no hay imagen
     return PLACEHOLDER_IMAGE;
   };
 
+  // --- Estilos (Asumiendo que tienes un objeto styles definido más abajo) ---
+  // const styles = StyleSheet.create({ ... }); // Tus estilos aquí
 
   return (
     <ScrollView contentContainerStyle={[styles.container, isDarkMode && styles.darkContainer]}>
-      {/* ... (Sección de Perfil, FeatureCard, Botón Usuarios - sin cambios) ... */}
-        <View style={[styles.profileSection, isDarkMode && styles.darkProfileSection]}>
-          <Image
-            source={require('./assets/profile-placeholder.png')}
-            style={styles.profileImage}
-          />
-          <Text style={[styles.welcomeText, isDarkMode && styles.darkText]}>Te damos la bienvenida a TechSolutionsApp</Text>
-        </View>
+      {/* Sección de Perfil */}
+      <View style={[styles.profileSection, isDarkMode && styles.darkProfileSection]}>
+        <Image
+          source={require('./assets/profile-placeholder.png')} // Asegúrate que esta ruta es correcta
+          style={styles.profileImage}
+        />
+        <Text style={[styles.welcomeText, isDarkMode && styles.darkText]}>Te damos la bienvenida a TechSolutionsApp</Text>
+      </View>
 
-        <View style={styles.contentArea}>
-          <FeatureCard
-            title="Productos"
-            description="Gestiona tus productos electrónicos."
-            isDarkMode={isDarkMode}
-            iconName="basket-outline"
-            onPress={toggleInventory}
-          />
+      {/* Área de Contenido */}
+      <View style={styles.contentArea}>
+        <FeatureCard
+          title="Productos"
+          description="Gestiona tus productos electrónicos."
+          isDarkMode={isDarkMode}
+          iconName="basket-outline"
+          onPress={toggleInventory}
+        />
+        <TouchableOpacity style={[styles.viewUsersButton, isDarkMode && styles.darkButton]} onPress={onNavigateToUsers}>
+          <Text style={[styles.viewUsersButtonText, isDarkMode && styles.darkText]}>Ver usuarios registrados</Text>
+        </TouchableOpacity>
+      </View>
 
-          <TouchableOpacity style={[styles.viewUsersButton, isDarkMode && styles.darkButton]} onPress={onNavigateToUsers}>
-            <Text style={[styles.viewUsersButtonText, isDarkMode && styles.darkText]}>Ver usuarios registrados</Text>
-          </TouchableOpacity>
-        </View>
-
-
-      {/* --- Sección de Inventario (sin cambios relevantes en la estructura) --- */}
-       {showInventory && (
-          <View style={styles.inventoryContainer}>
-            <View style={styles.inventoryHeader}>
-              <Text style={[styles.inventoryTitle, isDarkMode && styles.darkText]}>Inventario</Text>
-              <TouchableOpacity onPress={openAddModal} style={styles.addButton}>
-                <Ionicons name="add-circle" size={30} color="#2ecc71" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.productList}>
-              {products.length > 0 ? (
-                products.map((product) => (
-                    product && product.id ? ( // Check added previously
-                     <ProductCard
-                      key={product.id}
-                      name={product.name}
-                      // imageSource puede ser require() o {uri: ...}, ProductCard lo debe manejar
-                      imageSource={product.imageSource}
-                      onPress={() => handleProductPress(product)}
-                    />
-                  ) : null
-                ))
-              ) : (
-                <Text style={[styles.noProductsText, isDarkMode && styles.darkText]}>
-                  No hay productos para mostrar.
-                </Text>
-              )}
-            </View>
+      {/* Sección de Inventario */}
+      {showInventory && (
+        <View style={styles.inventoryContainer}>
+          <View style={styles.inventoryHeader}>
+            <Text style={[styles.inventoryTitle, isDarkMode && styles.darkText]}>Inventario</Text>
+            <TouchableOpacity onPress={openAddModal} style={styles.addButton}>
+              <Ionicons name="add-circle" size={30} color="#2ecc71" />
+            </TouchableOpacity>
           </View>
-        )}
 
-      {/* ... (Botón Salir - sin cambios) ... */}
-       <TouchableOpacity style={[styles.logoutButton, isDarkMode && styles.darkLogoutButton]} onPress={onLogout}>
+          <View style={styles.productList}>
+            {products.length > 0 ? (
+              products.map((product) => (
+                  product && product.id ? ( // Verifica que el producto y su id existan
+                   <ProductCard
+                    key={product.id}
+                    name={product.name}
+                    imageSource={product.imageSource} // ProductCard debe manejar require y {uri}
+                    onPress={() => handleProductPress(product)}
+                  />
+                ) : null // Ignora productos inválidos en el array
+              ))
+            ) : (
+              <Text style={[styles.noProductsText, isDarkMode && styles.darkText]}>
+                No hay productos para mostrar.
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
+
+      {/* Botón Salir */}
+      <TouchableOpacity style={[styles.logoutButton, isDarkMode && styles.darkLogoutButton]} onPress={onLogout}>
         <Ionicons name="log-out-outline" size={24} color={isDarkMode ? "black" : "white"} />
         <Text style={[styles.logoutButtonText, isDarkMode && styles.darkLogoutText]}>Salir</Text>
       </TouchableOpacity>
 
-
-      {/* --- Modal Unificado (Ajustado para Imagen) --- */}
+      {/* Modal Unificado */}
       <Modal
         visible={modalVisible}
         animationType="slide"
         transparent={true}
-        onRequestClose={closeModal}
+        onRequestClose={closeModal} // Permite cerrar con botón atrás en Android
       >
         <View style={styles.modalBackground}>
           <View style={[styles.modalContainer, isDarkMode && styles.darkModalContainer]}>
-            {/* --- Contenido del Modal --- */}
 
-            {/* --- Modo VISTA --- */}
+            {/* Modo VISTA */}
             {modalMode === 'view' && selectedProduct && (
               <>
-                {/* Image ahora maneja require() o {uri: ...} automáticamente */}
                 <Image
                     source={selectedProduct.imageSource || PLACEHOLDER_IMAGE}
                     style={styles.modalProductImage}
@@ -333,26 +349,25 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
               </>
             )}
 
-            {/* --- Modo AGREGAR o EDITAR --- */}
+            {/* Modo AGREGAR o EDITAR */}
             {(modalMode === 'add' || modalMode === 'edit') && (
               <>
                 <Text style={[styles.modalTitle, isDarkMode && styles.darkText]}>
                   {modalMode === 'add' ? 'Agregar Producto' : 'Editar Producto'}
                 </Text>
 
-                  {/* --- Preview de Imagen y Botón para Seleccionar --- */}
-                  <View style={styles.imagePickerContainer}>
-                    <Text style={[styles.label, isDarkMode && styles.darkText]}>Imagen:</Text>
-                    <TouchableOpacity onPress={pickImage} style={styles.imagePreviewContainer}>
-                        <Image
-                          source={getPreviewImageSource()} // Usa la función helper
-                          style={styles.imagePreview}
-                          resizeMode="contain"
-                        />
-                        <Text style={styles.changeImageText}>Toca para cambiar</Text>
-                    </TouchableOpacity>
-                  </View>
-
+                {/* Picker de Imagen */}
+                <View style={styles.imagePickerContainer}>
+                  <Text style={[styles.label, isDarkMode && styles.darkText]}>Imagen:</Text>
+                  <TouchableOpacity onPress={pickImage} style={styles.imagePreviewContainer}>
+                      <Image
+                        source={getPreviewImageSource()}
+                        style={styles.imagePreview}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.changeImageText}>Toca para cambiar</Text>
+                  </TouchableOpacity>
+                </View>
 
                 {/* Campo Nombre */}
                 <Text style={[styles.label, isDarkMode && styles.darkText]}>Nombre:</Text>
@@ -365,7 +380,7 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
                 />
 
                 {/* Campo Descripción */}
-                  <Text style={[styles.label, isDarkMode && styles.darkText]}>Descripción:</Text>
+                <Text style={[styles.label, isDarkMode && styles.darkText]}>Descripción:</Text>
                 <TextInput
                   style={[styles.input, styles.inputMultiline, isDarkMode && styles.darkInput]}
                   placeholder="Descripción del Producto"
@@ -375,9 +390,11 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
                   multiline
                 />
 
+                {/* Botones de Acción */}
                 <View style={styles.modalActions}>
                   <Button
                     title={modalMode === 'add' ? 'Agregar' : 'Guardar Cambios'}
+                    // Llama a las funciones actualizadas que incluyen la alerta
                     onPress={modalMode === 'add' ? handleAddProduct : handleUpdateProduct}
                     color="#2ecc71"
                   />
@@ -393,22 +410,22 @@ const HomeScreen = ({ onLogout, isDarkMode, onNavigateToUsers }) => {
   );
 };
 
-// --- Product Card Component (Asegurarse que maneja ambas fuentes) ---
+// --- Componente ProductCard (Asegúrate que maneja imageSource correctamente) ---
 const ProductCard = ({ name, imageSource, onPress }) => {
   const displayName = name || 'Producto';
-  // Image source puede ser require() o { uri: ... }, Image lo maneja
-  const sourceToShow = imageSource || PLACEHOLDER_IMAGE; // Mostrar placeholder si no hay imagen
+  // Si imageSource es null o undefined, usa el placeholder
+  const sourceToShow = imageSource || PLACEHOLDER_IMAGE;
 
   return (
     <TouchableOpacity style={styles.productCard} onPress={onPress}>
+      {/* Image maneja tanto require() como { uri: '...' } */}
       <Image source={sourceToShow} style={styles.productImage} resizeMode="contain" />
       <Text style={styles.productName} numberOfLines={2}>{displayName}</Text>
     </TouchableOpacity>
   );
 };
 
-
-// --- FeatureCard Component (Sin Cambios) ---
+// --- Componente FeatureCard (Sin cambios) ---
 const FeatureCard = ({ title, iconName, description, isDarkMode, onPress }) => (
   <TouchableOpacity style={[styles.card, isDarkMode && styles.darkCard]} onPress={onPress}>
     <Ionicons name={iconName} size={50} color={isDarkMode ? "white" : "#0D47A1"} />
@@ -418,237 +435,310 @@ const FeatureCard = ({ title, iconName, description, isDarkMode, onPress }) => (
 );
 
 
+
+const primary = '#0D47A1';
+const primaryDark = '#002E5D';
+const secondary = '#64B5F6';
+const backgroundLight = '#F4F7FC';
+const backgroundDark = '#121212';
+const surfaceLight = '#FFFFFF';
+const surfaceDark = '#1E1E1E';
+const textPrimary = '#212121'; // Darker primary text
+const textSecondary = '#616161'; // Darker secondary text
+const textLight = '#FFFFFF';
+const shadowColor = '#000';
+const lightBorder = '#E0E0E0';
+const darkBorder = '#424242';
+const success = '#2E7D32'; // Darker success
+const warning = '#F9A825'; // More vibrant warning
+const error = '#D32F2F';   // Darker error
+
+const baseShadow = {
+  shadowColor: shadowColor,
+  shadowOffset: { width: 0, height: 1 }, // Subtle base shadow
+  shadowOpacity: 0.18,
+  shadowRadius: 2,
+  elevation: 2,
+};
+
+const cardShadow = {
+  shadowColor: shadowColor,
+  shadowOffset: { width: 0, height: 3 }, // More defined card shadow
+  shadowOpacity: 0.15,
+  shadowRadius: 6,
+  elevation: 4,
+};
+
+const productShadow = {
+  shadowColor: shadowColor,
+  shadowOffset: { width: 0, height: 2 }, // Specific product shadow
+  shadowOpacity: 0.2,
+  shadowRadius: 4,
+  elevation: 3,
+};
+
+const modalShadow = {
+  shadowColor: shadowColor,
+  shadowOffset: { width: 0, height: 4 }, // Refined modal shadow
+  shadowOpacity: 0.22,
+  shadowRadius: 8,
+  elevation: 5,
+};
+
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     justifyContent: 'flex-start',
     alignItems: 'center',
-    backgroundColor: '#F4F7FC',
-    paddingVertical: 20,
+    backgroundColor: backgroundLight,
+    paddingVertical: 30,
   },
   darkContainer: {
-    backgroundColor: '#121212',
+    backgroundColor: backgroundDark,
   },
   profileSection: {
     alignItems: 'center',
-    marginBottom: 30,
-    marginTop: 20,
+    marginBottom: 40,
+    marginTop: 30,
   },
   darkProfileSection: {
-    backgroundColor: '#1E1E1E',
-    padding: 15,
-    borderRadius: 20,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 5,
+    backgroundColor: surfaceDark,
+    padding: 20,
+    borderRadius: 15,
+    marginBottom: 25,
+    shadowColor: shadowColor,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 7,
   },
   profileImage: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: '#0D47A1',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    marginBottom: 15,
+    borderWidth: 3,
+    borderColor: primary,
   },
   welcomeText: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: '#0D47A1',
-    marginTop: 15,
+    fontSize: 28,
+    fontWeight: '700',
+    color: primary,
+    marginTop: 20,
   },
   darkText: {
-    color: '#FFFFFF',
+    color: textLight,
   },
   contentArea: {
-    width: '90%',
+    width: '95%',
     alignItems: 'center',
   },
   card: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
+    backgroundColor: surfaceLight,
+    borderRadius: 15,
+    padding: 25,
+    marginBottom: 25,
     width: '100%',
     alignItems: 'center',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 6,
+    ...cardShadow,
+    borderWidth: 1,
+    borderColor: lightBorder,
   },
   darkCard: {
-    backgroundColor: "#333333",
-    shadowColor: "#fff",
+    backgroundColor: surfaceDark,
+    shadowColor: textLight,
+    borderColor: darkBorder,
   },
   cardTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginTop: 10,
-    color: '#0D47A1',
+    fontSize: 22,
+    fontWeight: '600',
+    marginTop: 15,
+    color: primary,
   },
   cardDescription: {
-    fontSize: 15,
-    marginTop: 5,
+    fontSize: 16,
+    marginTop: 8,
     textAlign: 'center',
-    color: '#777',
+    color: textSecondary,
+    lineHeight: 24,
   },
   inventoryContainer: {
-    marginTop: 20,
-    width: '90%',
-    backgroundColor: '#f9f9f9',
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 6,
+    marginTop: 30,
+    width: '95%',
+    backgroundColor: surfaceLight, // Using surfaceLight for better contrast
+    borderRadius: 15,
+    padding: 25,
+    ...cardShadow,
+    borderWidth: 1,
+    borderColor: lightBorder,
   },
   inventoryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 20,
     width: '100%',
   },
   inventoryTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#0D47A1',
+    fontSize: 24,
+    fontWeight: '700', // Stronger emphasis
+    color: primary,
   },
   addButton: {
-    padding: 8,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addButtonText: {
+    color: textLight,
+    fontSize: 16,
+    fontWeight: '500',
   },
   productList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     width: '100%',
+    paddingHorizontal: 5, // Add some horizontal padding for better spacing
   },
   productCard: {
-    backgroundColor: 'white',
+    backgroundColor: surfaceLight,
     borderRadius: 12,
     padding: 15,
     marginBottom: 20,
-    width: '46%',
+    width: '48%',
     alignItems: 'center',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-    minHeight: 200,
+    ...productShadow, // Using specific product shadow
+    minHeight: 240, // Slightly taller to accommodate more content
     justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: lightBorder,
   },
   productImage: {
     width: '90%',
-    height: 110,
+    height: 130, // Increased height
     borderRadius: 10,
     marginBottom: 10,
-    backgroundColor: '#eee',
+    backgroundColor: '#F5F5F5', // Softer background
+    resizeMode: 'cover', // Ensure image fills the container nicely
   },
   productName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     textAlign: 'center',
-    color: '#333',
+    color: textPrimary,
+    marginBottom: 5, // Add a little space below the name
+  },
+  productPrice: {
+    fontSize: 16,
+    color: success, // Use a distinct color for price
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  productDescriptionShort: {
+    fontSize: 14,
+    color: textSecondary,
+    textAlign: 'center',
+    marginBottom: 10,
+    lineHeight: 20,
+    height: 40, // Limit height to show a short description
+    overflow: 'hidden',
   },
   modalBackground: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
   },
   modalContainer: {
-    backgroundColor: 'white',
-    padding: 30,
-    borderRadius: 20,
+    backgroundColor: surfaceLight,
+    padding: 35,
+    borderRadius: 15,
     alignItems: 'center',
-    width: '85%',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 6,
+    width: '90%',
+    ...modalShadow,
   },
   darkModalContainer: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: surfaceDark,
   },
   modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 25,
-    color: '#0D47A1',
+    fontSize: 26, // Slightly larger modal title
+    fontWeight: '700',
+    marginBottom: 30,
+    color: primary,
+    textAlign: 'center',
   },
   modalProductImage: {
-    width: 190,
-    height: 190,
-    marginBottom: 20,
-    backgroundColor: '#eee',
+    width: 220, // Larger modal image
+    height: 220, // Larger modal image
+    marginBottom: 25,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 10,
+    resizeMode: 'contain', // Or 'cover' depending on the desired look
   },
   modalProductName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 12,
+    fontSize: 24,
+    fontWeight: '600',
+    marginBottom: 15,
     textAlign: 'center',
-    color: '#333',
+    color: textPrimary,
   },
   modalProductDescription: {
     fontSize: 16,
-    color: '#666',
+    color: textSecondary,
     textAlign: 'center',
-    marginBottom: 25,
+    marginBottom: 30,
+    lineHeight: 24,
   },
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     width: '100%',
-    marginTop: 25,
+    marginTop: 30,
   },
   input: {
     width: '100%',
     borderWidth: 1.5,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    marginBottom: 18,
-    fontSize: 16,
+    borderColor: lightBorder,
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    marginBottom: 22,
+    fontSize: 17,
   },
   inputMultiline: {
-    height: 120,
+    height: 140,
     textAlignVertical: 'top',
   },
   darkInput: {
-    backgroundColor: '#444',
-    borderColor: '#666',
-    color: 'white',
+    backgroundColor: '#333',
+    borderColor: darkBorder,
+    color: textLight,
   },
   label: {
-    fontSize: 16,
-    color: '#444',
-    fontWeight: '600',
-    marginBottom: 8,
+    fontSize: 17,
+    color: textPrimary,
+    fontWeight: '500',
+    marginBottom: 10,
     alignSelf: 'flex-start',
-    marginLeft: 8,
+    marginLeft: 10,
   },
   imagePickerContainer: {
     width: '100%',
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 22,
   },
   imagePreviewContainer: {
     borderWidth: 2,
-    borderColor: '#ccc',
+    borderColor: lightBorder,
     borderRadius: 10,
-    width: 160,
-    height: 160,
+    width: 180,
+    height: 180,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f4f4f4',
+    backgroundColor: '#F0F0F0',
     overflow: 'hidden',
     position: 'relative',
   },
@@ -659,56 +749,52 @@ const styles = StyleSheet.create({
   changeImageText: {
     position: 'absolute',
     bottom: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    color: 'white',
-    fontSize: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    color: textLight,
+    fontSize: 13,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
   },
   logoutButton: {
     flexDirection: 'row',
-    backgroundColor: "#0D47A1",
-    paddingVertical: 14,
-    paddingHorizontal: 22,
+    backgroundColor: primary,
+    paddingVertical: 16,
+    paddingHorizontal: 25,
     borderRadius: 12,
-    alignItems: "center",
-    marginTop: 15,
-    marginBottom: 20,
-    shadowColor: "#0D47A1",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 5,
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 25,
+    ...baseShadow,
   },
   darkLogoutButton: {
-    backgroundColor: "white",
+    backgroundColor: secondary,
   },
   logoutButtonText: {
-    marginLeft: 12,
-    color: "white",
-    fontSize: 18,
-    fontWeight: "bold",
+    marginLeft: 15,
+    color: textLight,
+    fontSize: 19,
+    fontWeight: '600',
   },
   viewUsersButton: {
-    backgroundColor: '#27AE60',
-    paddingVertical: 12,
-    paddingHorizontal: 18,
+    backgroundColor: success,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     borderRadius: 10,
-    marginTop: 15,
-    marginBottom: 20,
+    marginTop: 20,
+    marginBottom: 25,
   },
   viewUsersButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
+    color: textLight,
+    fontSize: 19,
+    fontWeight: '600',
   },
   noProductsText: {
     width: '100%',
     textAlign: 'center',
-    marginTop: 25,
+    marginTop: 30,
     fontSize: 18,
-    color: '#777',
+    color: textSecondary,
   },
 });
 

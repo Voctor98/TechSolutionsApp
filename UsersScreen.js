@@ -1,31 +1,30 @@
-// UsersScreen.js
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, FlatList, Image } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import Modal from 'react-native-modal'; // Importa la librería de modal
+import Modal from 'react-native-modal';
+import { db } from './firebase'; // Asegúrate de importar db
+import { collection, getDocs } from 'firebase/firestore'; // Importa los métodos de Firestore
 
 const UsersScreen = ({ isDarkMode, goBackToHome }) => {
     const [users, setUsers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [visiblePasswords, setVisiblePasswords] = useState({}); // Objeto para rastrear qué contraseñas son visibles
+    const [visiblePasswords, setVisiblePasswords] = useState({});
     const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
     const [userToDelete, setUserToDelete] = useState(null);
 
     useEffect(() => {
         const fetchUsers = async () => {
             try {
-                const storedUsers = await AsyncStorage.getItem('users');
-                if (storedUsers) {
-                    setUsers(JSON.parse(storedUsers));
-                }
+                const usersSnapshot = await getDocs(collection(db, 'users')); // Accede a la colección de usuarios
+                const usersList = usersSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                }));
+                setUsers(usersList);
             } catch (error) {
                 console.error("Error fetching users:", error);
-                setError("Could not load user data.");
-                // Usaremos el modal de error en lugar de la alerta nativa aquí también
-                setErrorMessage(error.message || "No se pudieron cargar los datos de usuario.");
-                setErrorModalVisible(true);
+                setError("No se pudieron cargar los datos de usuario.");
             } finally {
                 setIsLoading(false);
             }
@@ -34,18 +33,10 @@ const UsersScreen = ({ isDarkMode, goBackToHome }) => {
         fetchUsers();
     }, []);
 
-    const deleteUser = async (emailToDelete) => {
+    const deleteUser = async (idToDelete) => {
         try {
-            const existingUsers = await AsyncStorage.getItem('users');
-            let users = existingUsers ? JSON.parse(existingUsers) : [];
-
-            users = users.filter(user => user.email !== emailToDelete);
-
-            await AsyncStorage.setItem('users', JSON.stringify(users));
-
-            setUsers(users);
-
-            // Mostrar modal de éxito
+            await db.collection('users').doc(idToDelete).delete(); // Ajusta con la nueva instancia de Firestore
+            setUsers(prevUsers => prevUsers.filter(user => user.id !== idToDelete));
             setSuccessMessage("Usuario eliminado correctamente.");
             setSuccessModalVisible(true);
         } catch (error) {
@@ -58,8 +49,8 @@ const UsersScreen = ({ isDarkMode, goBackToHome }) => {
         }
     };
 
-    const confirmDelete = (email) => {
-        setUserToDelete(email);
+    const confirmDelete = (id) => {
+        setUserToDelete(id);
         setDeleteModalVisible(true);
     };
 
@@ -79,7 +70,6 @@ const UsersScreen = ({ isDarkMode, goBackToHome }) => {
         setUserToDelete(null);
     };
 
-    // Estados y funciones para modales de éxito y error
     const [successModalVisible, setSuccessModalVisible] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
     const [errorModalVisible, setErrorModalVisible] = useState(false);
@@ -100,7 +90,7 @@ const UsersScreen = ({ isDarkMode, goBackToHome }) => {
                     {visiblePasswords[item.email] ? item.password : '••••••••'}
                 </Text>
             </View>
-            <TouchableOpacity onPress={() => confirmDelete(item.email)} style={styles.deleteButton}>
+            <TouchableOpacity onPress={() => confirmDelete(item.id)} style={styles.deleteButton}>
                 <Ionicons name="trash-outline" size={20} color={isDarkMode ? "#F44336" : "#757575"} />
             </TouchableOpacity>
         </TouchableOpacity>
@@ -125,7 +115,7 @@ const UsersScreen = ({ isDarkMode, goBackToHome }) => {
                 <FlatList
                     data={users}
                     renderItem={renderUserItem}
-                    keyExtractor={(item, index) => index.toString()}
+                    keyExtractor={(item) => item.id}
                     style={styles.list}
                     contentContainerStyle={styles.listContent}
                     ListEmptyComponent={<Text style={[styles.emptyListText, isDarkMode && styles.darkEmptyListText]}>No hay usuarios registrados.</Text>}
@@ -176,146 +166,82 @@ const UsersScreen = ({ isDarkMode, goBackToHome }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FAFAFA', // Very light grey
-    },
-    darkContainer: {
-        backgroundColor: '#212121', // Dark grey
+        backgroundColor: '#fff',
+        paddingTop: 20, // Ajustamos el espacio superior
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingTop: 55,
-        paddingBottom: 15,
         paddingHorizontal: 20,
-        backgroundColor: '#FFFFFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E0E0E0',
-        elevation: 0, // Removed shadow for a flatter look
-        position: 'relative',
-        justifyContent: 'center',
-    },
-    darkHeader: {
-        backgroundColor: '#303030',
-        borderBottomColor: '#424242',
+        height: 60,
+        backgroundColor: '#f5f5f5',
+        justifyContent: 'flex-start',
     },
     backButton: {
-        padding: 10,
-        position: 'absolute',
-        left: 15,
-        top: 55,
-        zIndex: 1,
+        marginRight: 15,
     },
     headerTitle: {
-        fontSize: 20,
-        fontWeight: '500',
-        color: '#424242',
-        textAlign: 'center',
-        flex: 1,
-    },
-    darkHeaderTitle: {
-        color: '#F5F5F5',
-    },
-    list: {
-        flex: 1,
-        paddingHorizontal: 15,
-    },
-    listContent: {
-        paddingTop: 15,
-        paddingBottom: 15,
+        fontSize: 24,
+        fontWeight: 'bold',
     },
     userItem: {
-        backgroundColor: '#FFFFFF',
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        marginBottom: 12,
-        borderRadius: 6,
-        borderWidth: 1,
-        borderColor: '#E0E0E0',
         flexDirection: 'row',
+        padding: 15,
         alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    darkUserItem: {
-        backgroundColor: '#303030',
-        borderColor: '#424242',
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
     },
     userImage: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        marginRight: 12,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        marginRight: 15,
     },
     userInfo: {
         flex: 1,
     },
     email: {
         fontSize: 16,
-        color: '#212121',
-        marginBottom: 2,
-    },
-    darkEmail: {
-        color: '#E0E0E0',
+        fontWeight: 'bold',
     },
     passwordPlaceholder: {
-        fontSize: 14,
-        color: '#757575',
-    },
-    darkPasswordPlaceholder: {
-        color: '#BDBDBD',
+        color: '#aaa',
     },
     deleteButton: {
-        padding: 8,
+        padding: 10,
     },
     loading: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    error: {
-        fontSize: 16,
-        color: '#D32F2F',
-        textAlign: 'center',
-        marginTop: 20,
-    },
-    darkError: {
-        color: '#EF9A9A',
+    list: {
+        flex: 1,
     },
     emptyListText: {
-        fontSize: 16,
-        color: '#757575',
         textAlign: 'center',
-        marginTop: 30,
+        marginTop: 20,
+        color: '#888',
     },
-    darkEmptyListText: {
-        color: '#BDBDBD',
+    error: {
+        textAlign: 'center',
+        color: 'red',
+        marginTop: 20,
     },
     modalContainer: {
-        backgroundColor: 'white',
-        padding: 22,
-        borderRadius: 8,
+        backgroundColor: '#fff',
+        borderRadius: 10,
+        padding: 20,
         alignItems: 'center',
     },
-    darkModalContainer: {
-        backgroundColor: '#333',
-    },
     modalTitle: {
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: 'bold',
-        marginBottom: 15,
-        color: '#333',
-        textAlign: 'center',
-    },
-    darkModalTitle: {
-        color: '#eee',
+        marginBottom: 10,
     },
     modalText: {
         fontSize: 16,
         marginBottom: 20,
-        textAlign: 'center',
-        color: '#555',
-    },
-    darkModalText: {
-        color: '#ccc',
     },
     modalButtons: {
         flexDirection: 'row',
@@ -326,34 +252,21 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         paddingHorizontal: 20,
         borderRadius: 5,
-        marginHorizontal: 5,
+        marginTop: 10,
     },
     cancelButton: {
-        backgroundColor: '#ddd',
-    },
-    cancelButtonText: {
-        color: '#555',
+        backgroundColor: '#f44336',
     },
     confirmButton: {
-        backgroundColor: '#007bff', // Un azul más profesional
+        backgroundColor: '#28a745',
+    },
+    cancelButtonText: {
+        color: '#fff',
+        fontSize: 16,
     },
     confirmButtonText: {
-        color: 'white',
-        fontWeight: 'bold',
-    },
-    successModal: {
-        backgroundColor: 'white',
-    },
-    successTitle: {
-        color: '#28a745',
-        marginTop: 10,
-    },
-    errorModal: {
-        backgroundColor: 'white',
-    },
-    errorTitle: {
-        color: '#dc3545',
-        marginTop: 10,
+        color: '#fff',
+        fontSize: 16,
     },
 });
 
