@@ -1,14 +1,12 @@
-// LoginScreen.js
 import React, { useState, useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, Image, Alert, ActivityIndicator, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Animatable from "react-native-animatable";
 import { styles } from './styles';
 import { InputField, FormButton } from './CustomComponents';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-// import * as Location from 'expo-location'; // ⬅️ Eliminar import de ubicación
-import * as MediaLibrary from 'expo-media-library'; // ➡️ Nuevo import para acceso a archivos
-
+import * as MediaLibrary from 'expo-media-library';
+import { auth } from './firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 const validateEmailFormat = (email) => /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/.test(email);
 
@@ -20,6 +18,11 @@ const LoginScreen = ({ onNavigateToRegister, onLoginSuccess, isDarkMode, toggleD
   const [emailError, setEmailError] = useState("");
   const emailInputRef = useRef(null);
 
+  // Seguridad: intentos de login
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockTimeLeft, setBlockTimeLeft] = useState(0);
+
   useEffect(() => {
     if (emailInputRef.current) {
       emailInputRef.current.focus();
@@ -29,7 +32,19 @@ const LoginScreen = ({ onNavigateToRegister, onLoginSuccess, isDarkMode, toggleD
     setEmailError("");
   }, []);
 
-  // ⬇️ Función para solicitar permiso de acceso a archivos con explicación y manejo
+  useEffect(() => {
+    let timer;
+    if (isBlocked && blockTimeLeft > 0) {
+      timer = setTimeout(() => {
+        setBlockTimeLeft((prev) => prev - 1);
+      }, 1000);
+    } else if (isBlocked && blockTimeLeft === 0) {
+      setIsBlocked(false);
+      setLoginAttempts(0);
+    }
+    return () => clearTimeout(timer);
+  }, [blockTimeLeft, isBlocked]);
+
   const solicitarPermisoArchivos = async () => {
     const { status } = await MediaLibrary.requestPermissionsAsync();
     if (status !== 'granted') {
@@ -50,53 +65,47 @@ const LoginScreen = ({ onNavigateToRegister, onLoginSuccess, isDarkMode, toggleD
   };
 
   const handleLogin = async () => {
+    if (isBlocked) {
+      Alert.alert("Demasiados intentos", `Por favor, espera ${blockTimeLeft} segundos`);
+      return;
+    }
+
     if (!email || !password) {
       Alert.alert("Error", "Por favor, ingresa todos los campos");
       return;
     }
-    setIsLoading(true);
-    try {
-      const existingUsers = await AsyncStorage.getItem('users');
-      const users = existingUsers ? JSON.parse(existingUsers) : [];
 
-      const user = users.find(u => u.email === email && u.password === password);
+    setIsLoading(true);
+
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
 
       if (user) {
-        // Explicación antes de pedir permisos de archivos
-        Alert.alert(
-          "Permiso de acceso a archivos",
-          "Necesitamos tu permiso para acceder a tus archivos (fotos/media) y habilitar ciertas funciones.",
-          [
-            {
-              text: "Aceptar",
-              onPress: async () => {
-                const granted = await solicitarPermisoArchivos();
-                if (granted) {
-                  await logLogin(email); // Guardar log de inicio
-                  onLoginSuccess(); // Navegar a la siguiente pantalla
-                }
-              }
-            },
-            { text: "Cancelar", style: "cancel" }
-          ]
-        );
-      } else {
-        Alert.alert("Error", "Email o contraseña incorrectos.");
+        Alert.alert("Inicio de sesión exitoso", `Bienvenido ${user.email}`);
+        setLoginAttempts(0);
+        onLoginSuccess();
       }
     } catch (error) {
       console.error("Error during login:", error);
-      Alert.alert("Error", "Hubo un problema al iniciar sesión.");
+      setLoginAttempts((prev) => prev + 1);
+
+      if (loginAttempts + 1 >= 5) {
+        setIsBlocked(true);
+        setBlockTimeLeft(30);
+        Alert.alert("Demasiados intentos", "Has excedido el número de intentos. Inténtalo de nuevo más tarde.");
+      } else {
+        if (error.code === 'auth/user-not-found') {
+          Alert.alert("Error", "El usuario no fue encontrado.");
+        } else if (error.code === 'auth/wrong-password') {
+          Alert.alert("Error", "Contraseña incorrecta.");
+        } else {
+          Alert.alert("Error", "Hubo un problema al iniciar sesión.");
+        }
+      }
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // ⬇️ Guardar logs de login (opcional pero útil para auditoría)
-  const logLogin = async (email) => {
-    const logs = await AsyncStorage.getItem('loginLogs');
-    const parsed = logs ? JSON.parse(logs) : [];
-    parsed.push({ email, timestamp: new Date().toISOString() });
-    await AsyncStorage.setItem('loginLogs', JSON.stringify(parsed));
   };
 
   return (
@@ -109,6 +118,7 @@ const LoginScreen = ({ onNavigateToRegister, onLoginSuccess, isDarkMode, toggleD
       />
       <Animatable.View style={[styles.formContainer, isDarkMode && styles.darkFormContainer]}>
         <Text style={[styles.title, isDarkMode && styles.darkText]}>Iniciar Sesión</Text>
+
         <InputField
           iconName="mail-outline"
           placeholder="Email"
@@ -134,14 +144,27 @@ const LoginScreen = ({ onNavigateToRegister, onLoginSuccess, isDarkMode, toggleD
           isDarkMode={isDarkMode}
         />
 
-        <FormButton title="Iniciar Sesión" onPress={handleLogin} isDarkMode={isDarkMode} isLoading={isLoading} />
+        <FormButton
+          title="Iniciar Sesión"
+          onPress={handleLogin}
+          isDarkMode={isDarkMode}
+          isLoading={isLoading}
+          disabled={isBlocked}
+        />
+
+        {isBlocked && (
+          <Text style={{ color: 'red', marginTop: 10 }}>
+            Espera {blockTimeLeft} segundos para volver a intentar
+          </Text>
+        )}
 
         <TouchableOpacity onPress={onNavigateToRegister}>
-          <Text style={[styles.link, isDarkMode && styles.darkText]}>¿No tienes cuenta? Regístrate</Text>
+          <Text style={[styles.link, isDarkMode && styles.darkText]}>
+            ¿No tienes cuenta? Regístrate
+          </Text>
         </TouchableOpacity>
       </Animatable.View>
 
-      {/* Dark Mode Toggle */}
       <TouchableOpacity style={[styles.darkModeButton, isDarkMode && styles.darkButton]} onPress={toggleDarkMode}>
         <Ionicons name={isDarkMode ? "sunny" : "moon"} size={24} color={isDarkMode ? "white" : "#0D47A1"} />
         <Text style={[styles.darkModeButtonText, isDarkMode && styles.darkText]}>
