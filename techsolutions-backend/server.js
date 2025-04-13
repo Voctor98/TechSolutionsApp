@@ -1,21 +1,21 @@
 const express = require('express');
-const bodyParser = require('body-parser');
 const cors = require('cors');
-const dotenv = require('dotenv');
 const userRoutes = require('./routes/userRoutes');
-const db = require('./models/db'); // 🔹 Importar conexión a MySQL
-
-dotenv.config();
+const articleRoutes = require('./routes/articleRoutes');
+require('dotenv').config();
 
 const app = express();
-const port = process.env.PORT || 3000;
 
+// Middleware
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
-// Rutas de API
-app.use('/api', userRoutes);
+// Rutas
+app.use('/api/users', userRoutes);
+app.use('/api/articles', articleRoutes);
 
-app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
+// Puerto
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en puerto ${PORT}`);
 });

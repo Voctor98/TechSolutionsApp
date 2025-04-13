@@ -1,21 +1,31 @@
-import axios from 'axios';
+const API_URL = "http://192.168.1.93:3000"; // Reemplaza con tu IP local real
 
-const API_URL = 'http://192.168.1.95:3000/api';
-
-export const register = async (name, email, password) => {
+export const registerUser = async (userData) => {
   try {
-    const response = await axios.post(`${API_URL}/register`, { name, email, password });
-    return response.data;
+    const response = await fetch(`${API_URL}/api/users/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(userData),
+    });
+
+    return await response.json();
   } catch (error) {
-    throw error.response?.data || 'Error desconocido';
+    console.error("Error al registrar usuario:", error);
+    throw error;
   }
 };
 
-export const login = async (identifier, password) => {
+export const loginUser = async (credentials) => {
   try {
-    const response = await axios.post(`${API_URL}/login`, { identifier, password });
-    return response.data;
+    const response = await fetch(`${API_URL}/api/users/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(credentials),
+    });
+
+    return await response.json();
   } catch (error) {
-    throw error.response?.data || 'Error desconocido';
+    console.error("Error al iniciar sesión:", error);
+    throw error;
   }
 };
