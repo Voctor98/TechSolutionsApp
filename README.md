@@ -14,7 +14,7 @@ Aplicación de soluciones tecnológicas desarrollada para gestionar servicios, c
 
 - Frontend: React.js (o la tecnología que uses)
 - Backend: Node.js/Express (o el que corresponda)
-- Base de datos: MongoDB/MySQL/PostgreSQL (ajustar)
+- Base de datos: Firebase
 - Otras librerías: (especificar si hay importantes)
 
 ## Requisitos del sistema
