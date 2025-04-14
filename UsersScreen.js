@@ -1,273 +1,645 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, FlatList, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Modal,
+  RefreshControl,
+  ActivityIndicator
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Modal from 'react-native-modal';
-import { db } from './firebase'; // Asegúrate de importar db
-import { collection, getDocs } from 'firebase/firestore'; // Importa los métodos de Firestore
+import { Alert } from 'react-native';
 
-const UsersScreen = ({ isDarkMode, goBackToHome }) => {
-    const [users, setUsers] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [visiblePasswords, setVisiblePasswords] = useState({});
-    const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
-    const [userToDelete, setUserToDelete] = useState(null);
 
-    useEffect(() => {
-        const fetchUsers = async () => {
-            try {
-                const usersSnapshot = await getDocs(collection(db, 'users')); // Accede a la colección de usuarios
-                const usersList = usersSnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data(),
-                }));
-                setUsers(usersList);
-            } catch (error) {
-                console.error("Error fetching users:", error);
-                setError("No se pudieron cargar los datos de usuario.");
-            } finally {
-                setIsLoading(false);
-            }
-        };
+// Constantes de estilo
+const colors = {
+  primary: '#0D47A1',
+  primaryDark: '#002E5D',
+  secondary: '#64B5F6',
+  backgroundLight: '#F4F7FC',
+  backgroundDark: '#121212',
+  surfaceLight: '#FFFFFF',
+  surfaceDark: '#1E1E1E',
+  textPrimary: '#212121',
+  textSecondary: '#616161',
+  textLight: '#FFFFFF',
+  success: '#2E7D32',
+  warning: '#F9A825',
+  error: '#D32F2F',
+  admin: '#D32F2F',
+  editor: '#F9A825',
+  user: '#2E7D32'
+};
 
-        fetchUsers();
-    }, []);
+// Datos de usuarios de ejemplo mejorados
+const EXAMPLE_USERS = [
+  { 
+    id: '1', 
+    email: '200249@utags.edu.mx', 
+    name: 'Admin Principal', 
+    role: 'Admin',
+    phone: '4491830065',
+    joinDate: '15/03/2022',
+    lastLogin: 'Hoy, 09:45'
+  },
+  { 
+    id: '2', 
+    email: 'victormendozapalacio@gmail.com', 
+    name: 'Admin', 
+    role: 'Admin',
+    phone: '4491120006',
+    joinDate: '20/05/2023',
+    lastLogin: 'Ayer, 16:30'
+  },
+];
 
-    const deleteUser = async (idToDelete) => {
-        try {
-            await db.collection('users').doc(idToDelete).delete(); // Ajusta con la nueva instancia de Firestore
-            setUsers(prevUsers => prevUsers.filter(user => user.id !== idToDelete));
-            setSuccessMessage("Usuario eliminado correctamente.");
-            setSuccessModalVisible(true);
-        } catch (error) {
-            console.error("Error deleting user:", error);
-            setErrorMessage("No se pudo eliminar el usuario.");
-            setErrorModalVisible(true);
-        } finally {
-            setDeleteModalVisible(false);
-            setUserToDelete(null);
-        }
-    };
+const UsersScreen = ({ isDarkMode, goBackToHome, onToggleTheme }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState([]);
 
-    const confirmDelete = (id) => {
-        setUserToDelete(id);
-        setDeleteModalVisible(true);
-    };
+  // Simular carga de datos
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setUsers(EXAMPLE_USERS);
+      setLoading(false);
+    }, 1500);
+    
+    return () => clearTimeout(timer);
+  }, []);
 
-    const togglePasswordVisibility = (email) => {
-        setVisiblePasswords(prevState => ({
-            ...prevState,
-            [email]: !prevState[email],
-        }));
-    };
+  // Función para refrescar datos
+  const onRefresh = () => {
+    setRefreshing(true);
+    setLoading(true);
+    setTimeout(() => {
+      setRefreshing(false);
+      setLoading(false);
+    }, 2000);
+  };
 
-    const handleConfirmDelete = () => {
-        deleteUser(userToDelete);
-    };
+  // Filtrar usuarios según búsqueda
+  const filteredUsers = users.filter(user => 
+    user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.role.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-    const handleCancelDelete = () => {
-        setDeleteModalVisible(false);
-        setUserToDelete(null);
-    };
+  // Obtener color según rol
+  const getRoleColor = (role) => {
+    switch(role) {
+      case 'Admin': return colors.admin;
+      case 'Editor': return colors.warning;
+      default: return colors.success;
+    }
+  };
 
-    const [successModalVisible, setSuccessModalVisible] = useState(false);
-    const [successMessage, setSuccessMessage] = useState('');
-    const [errorModalVisible, setErrorModalVisible] = useState(false);
-    const [errorMessage, setErrorMessage] = useState('');
+  // Estadísticas de usuarios
+  const userStats = {
+    total: users.length,
+    admins: users.filter(u => u.role === 'Admin').length,
+    editors: users.filter(u => u.role === 'Editor').length,
+    regular: users.filter(u => u.role === 'Usuario').length
+  };
 
-    const closeSuccessModal = () => setSuccessModalVisible(false);
-    const closeErrorModal = () => setErrorModalVisible(false);
 
-    const renderUserItem = ({ item }) => (
-        <TouchableOpacity onPress={() => togglePasswordVisibility(item.email)} style={[styles.userItem, isDarkMode && styles.darkUserItem]}>
-            <Image
-                source={require('./assets/profile-placeholder.png')}
-                style={styles.userImage}
-            />
-            <View style={styles.userInfo}>
-                <Text style={[styles.email, isDarkMode && styles.darkEmail]}>{item.email}</Text>
-                <Text style={[styles.passwordPlaceholder, isDarkMode && styles.darkPasswordPlaceholder]}>
-                    {visiblePasswords[item.email] ? item.password : '••••••••'}
-                </Text>
-            </View>
-            <TouchableOpacity onPress={() => confirmDelete(item.id)} style={styles.deleteButton}>
-                <Ionicons name="trash-outline" size={20} color={isDarkMode ? "#F44336" : "#757575"} />
-            </TouchableOpacity>
+
+  
+  const handleDeleteUser = () => {
+    // Mostrar una alerta de confirmación antes de eliminar
+    Alert.alert(
+      'Confirmar Eliminación',
+      `¿Estás seguro de que deseas eliminar al usuario ${selectedUser.name}?`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => {
+            console.log('Eliminando usuario', selectedUser);
+            // Eliminar el usuario del estado
+            setUsers(prevUsers => prevUsers.filter(user => user.id !== selectedUser.id));
+            setSelectedUser(null); // Cierra el modal después de eliminar
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+  
+
+  return (
+    <ScrollView 
+      contentContainerStyle={[styles.container, isDarkMode && styles.darkContainer]}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={[colors.primary]}
+          tintColor={isDarkMode ? colors.textLight : colors.primary}
+        />
+      }
+    >
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={goBackToHome} style={styles.backButton}>
+          <Ionicons 
+            name="arrow-back" 
+            size={24} 
+            color={isDarkMode ? colors.textLight : colors.primary} 
+          />
+          <Text style={[styles.backButtonText, isDarkMode && styles.darkText]}>
+            Inicio
+          </Text>
         </TouchableOpacity>
-    );
+        
+        <TouchableOpacity 
+          onPress={onToggleTheme}
+          style={[styles.settingsButton, isDarkMode && styles.darkSettingsButton]}
+        >
+          <Ionicons 
+            name={isDarkMode ? "sunny" : "moon"} 
+            size={22} 
+            color={isDarkMode ? colors.textLight : colors.primary} 
+          />
+        </TouchableOpacity>
+      </View>
 
-    return (
-        <View style={[styles.container, isDarkMode && styles.darkContainer]}>
-            <View style={[styles.header, isDarkMode && styles.darkHeader]}>
-                <TouchableOpacity style={styles.backButton} onPress={goBackToHome}>
-                    <Ionicons name="arrow-back" size={24} color={isDarkMode ? "#E0E0E0" : "#546E7A"} />
-                </TouchableOpacity>
-                <Text style={[styles.headerTitle, isDarkMode && styles.darkHeaderTitle]}>Usuarios</Text>
-            </View>
-
-            {isLoading ? (
-                <View style={styles.loading}>
-                    <ActivityIndicator size="large" color={isDarkMode ? "#E0E0E0" : "#546E7A"} />
-                </View>
-            ) : error ? (
-                <Text style={[styles.error, isDarkMode && styles.darkError]}>{error}</Text>
-            ) : (
-                <FlatList
-                    data={users}
-                    renderItem={renderUserItem}
-                    keyExtractor={(item) => item.id}
-                    style={styles.list}
-                    contentContainerStyle={styles.listContent}
-                    ListEmptyComponent={<Text style={[styles.emptyListText, isDarkMode && styles.darkEmptyListText]}>No hay usuarios registrados.</Text>}
-                />
-            )}
-
-            {/* Modal de confirmación de eliminación */}
-            <Modal isVisible={isDeleteModalVisible}>
-                <View style={[styles.modalContainer, isDarkMode && styles.darkModalContainer]}>
-                    <Text style={[styles.modalTitle, isDarkMode && styles.darkModalTitle]}>Confirmar eliminación</Text>
-                    <Text style={[styles.modalText, isDarkMode && styles.darkModalText]}>¿Estás seguro de que quieres eliminar a este usuario?</Text>
-                    <View style={styles.modalButtons}>
-                        <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={handleCancelDelete}>
-                            <Text style={styles.cancelButtonText}>Cancelar</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.modalButton, styles.confirmButton]} onPress={handleConfirmDelete}>
-                            <Text style={styles.confirmButtonText}>Eliminar</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-
-            {/* Modal de éxito */}
-            <Modal isVisible={successModalVisible} onBackdropPress={closeSuccessModal}>
-                <View style={[styles.modalContainer, styles.successModal, isDarkMode && styles.darkModalContainer]}>
-                    <Ionicons name="checkmark-circle-outline" size={50} color="#28a745" />
-                    <Text style={[styles.modalTitle, styles.successTitle, isDarkMode && styles.darkModalTitle]}>{successMessage}</Text>
-                    <TouchableOpacity style={styles.modalButton} onPress={closeSuccessModal}>
-                        <Text style={styles.confirmButtonText}>Aceptar</Text>
-                    </TouchableOpacity>
-                </View>
-            </Modal>
-
-            {/* Modal de error */}
-            <Modal isVisible={errorModalVisible} onBackdropPress={closeErrorModal}>
-                <View style={[styles.modalContainer, styles.errorModal, isDarkMode && styles.darkModalContainer]}>
-                    <Ionicons name="alert-circle-outline" size={50} color="#dc3545" />
-                    <Text style={[styles.modalTitle, styles.errorTitle, isDarkMode && styles.darkModalTitle]}>{errorMessage}</Text>
-                    <TouchableOpacity style={styles.modalButton} onPress={closeErrorModal}>
-                        <Text style={styles.confirmButtonText}>Aceptar</Text>
-                    </TouchableOpacity>
-                </View>
-            </Modal>
+      {/* Título y estadísticas */}
+      <Text style={[styles.title, isDarkMode && styles.darkText]}>
+        Gestión de Usuarios
+      </Text>
+      
+      <View style={[styles.statsContainer, isDarkMode && styles.darkStatsContainer]}>
+        <View style={styles.statItem}>
+          <Text style={[styles.statNumber, isDarkMode && styles.darkText]}>
+            {userStats.total}
+          </Text>
+          <Text style={[styles.statLabel, isDarkMode && styles.darkText]}>
+            Total
+          </Text>
         </View>
-    );
+        <View style={styles.statItem}>
+          <Text style={[styles.statNumber, {color: colors.admin}]}>
+            {userStats.admins}
+          </Text>
+          <Text style={[styles.statLabel, isDarkMode && styles.darkText]}>
+            Admins
+          </Text>
+        </View>
+        <View style={styles.statItem}>
+          <Text style={[styles.statNumber, {color: colors.warning}]}>
+            {userStats.editors}
+          </Text>
+          <Text style={[styles.statLabel, isDarkMode && styles.darkText]}>
+            Editores
+          </Text>
+        </View>
+        <View style={styles.statItem}>
+          <Text style={[styles.statNumber, {color: colors.success}]}>
+            {userStats.regular}
+          </Text>
+          <Text style={[styles.statLabel, isDarkMode && styles.darkText]}>
+            Usuarios
+          </Text>
+        </View>
+      </View>
+
+      {/* Barra de búsqueda */}
+      <View style={[styles.searchContainer, isDarkMode && styles.darkSearchContainer]}>
+        <Ionicons 
+          name="search" 
+          size={20} 
+          color={isDarkMode ? colors.textSecondary : colors.textSecondary} 
+          style={styles.searchIcon} 
+        />
+        <TextInput
+          style={[styles.searchInput, isDarkMode && styles.darkSearchInput]}
+          placeholder="Buscar usuarios..."
+          placeholderTextColor={isDarkMode ? colors.textSecondary : colors.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <Ionicons 
+              name="close-circle" 
+              size={20} 
+              color={isDarkMode ? colors.textSecondary : colors.textSecondary} 
+            />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Contenido principal */}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator 
+            size="large" 
+            color={isDarkMode ? colors.textLight : colors.primary} 
+          />
+          <Text style={[styles.loadingText, isDarkMode && styles.darkText]}>
+            Cargando usuarios...
+          </Text>
+        </View>
+      ) : filteredUsers.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons 
+            name="people-outline" 
+            size={60} 
+            color={isDarkMode ? colors.textSecondary : colors.textSecondary} 
+          />
+          <Text style={[styles.emptyText, isDarkMode && styles.darkText]}>
+            No se encontraron usuarios
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.usersList}>
+          {filteredUsers.map(user => (
+            <TouchableOpacity 
+              key={user.id}
+              onPress={() => setSelectedUser(user)}
+              style={[styles.userCard, isDarkMode && styles.darkUserCard]}
+            >
+              <View style={styles.userAvatar}>
+                <Ionicons 
+                  name="person-circle" 
+                  size={40} 
+                  color={getRoleColor(user.role)} 
+                />
+              </View>
+              
+              <View style={styles.userInfo}>
+                <Text style={[styles.userName, isDarkMode && styles.darkText]}>
+                  {user.name}
+                </Text>
+                <Text style={[styles.userEmail, isDarkMode && styles.darkText]}>
+                  {user.email}
+                </Text>
+              </View>
+              
+              <View style={[styles.roleBadge, {backgroundColor: getRoleColor(user.role)}]}>
+                <Text style={styles.roleText}>
+                  {user.role}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* Modal de detalles del usuario */}
+      <Modal
+        visible={!!selectedUser}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setSelectedUser(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, isDarkMode && styles.darkModalContainer]}>
+            {selectedUser && (
+              <>
+                <View style={styles.modalHeader}>
+                  <Text style={[styles.modalTitle, isDarkMode && styles.darkText]}>
+                    Detalles del Usuario
+                  </Text>
+                  <TouchableOpacity onPress={() => setSelectedUser(null)}>
+                    <Ionicons 
+                      name="close" 
+                      size={28} 
+                      color={isDarkMode ? colors.textLight : colors.textPrimary} 
+                    />
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={styles.userDetailRow}>
+                  <Ionicons 
+                    name="person" 
+                    size={24} 
+                    color={getRoleColor(selectedUser.role)} 
+                  />
+                  <View style={styles.userDetailText}>
+                    <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>
+                      Nombre
+                    </Text>
+                    <Text style={[styles.detailValue, isDarkMode && styles.darkText]}>
+                      {selectedUser.name}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.userDetailRow}>
+                  <Ionicons 
+                    name="mail" 
+                    size={24} 
+                    color={getRoleColor(selectedUser.role)} 
+                  />
+                  <View style={styles.userDetailText}>
+                    <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>
+                      Correo electrónico
+                    </Text>
+                    <Text style={[styles.detailValue, isDarkMode && styles.darkText]}>
+                      {selectedUser.email}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.userDetailRow}>
+                  <Ionicons 
+                    name="call" 
+                    size={24} 
+                    color={getRoleColor(selectedUser.role)} 
+                  />
+                  <View style={styles.userDetailText}>
+                    <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>
+                      Teléfono
+                    </Text>
+                    <Text style={[styles.detailValue, isDarkMode && styles.darkText]}>
+                      {selectedUser.phone}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.userDetailRow}>
+                  <Ionicons 
+                    name="ribbon" 
+                    size={24} 
+                    color={getRoleColor(selectedUser.role)} 
+                  />
+                  <View style={styles.userDetailText}>
+                    <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>
+                      Rol
+                    </Text>
+                    <Text style={[styles.detailValue, isDarkMode && styles.darkText, {color: getRoleColor(selectedUser.role)}]}>
+                      {selectedUser.role}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.userDetailRow}>
+                  <Ionicons 
+                    name="calendar" 
+                    size={24} 
+                    color={getRoleColor(selectedUser.role)} 
+                  />
+                  <View style={styles.userDetailText}>
+                    <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>
+                      Fecha de registro
+                    </Text>
+                    <Text style={[styles.detailValue, isDarkMode && styles.darkText]}>
+                      {selectedUser.joinDate}
+                    </Text>
+                  </View>
+                </View>
+     
+                <View style={styles.modalActions}>                 
+                  <TouchableOpacity 
+                    style={[styles.actionButton, {backgroundColor: colors.error}]}
+                    onPress={handleDeleteUser}
+                  >
+                    <Text style={styles.actionButtonText}>
+                      Eliminar Usuario
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </ScrollView>
+  );
 };
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1,
-        backgroundColor: '#fff',
-        paddingTop: 20, // Ajustamos el espacio superior
+      flexGrow: 1,
+      padding: 6,
+      paddingTop: 40, // ⬅️ Añadido: espacio superior para que los botones no queden tan arriba
+      backgroundColor: colors.backgroundLight,
+    },
+    darkContainer: {
+      backgroundColor: colors.backgroundDark,
     },
     header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        height: 60,
-        backgroundColor: '#f5f5f5',
-        justifyContent: 'flex-start',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 24,
+      marginTop: 10, // ⬅️ Añadido: espacio entre el borde superior y los botones
     },
     backButton: {
-        marginRight: 15,
+      flexDirection: 'row',
+      alignItems: 'center',
     },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
+    backButtonText: {
+      marginLeft: 8,
+      fontSize: 18,
+      color: colors.primary,
+      fontWeight: '500',
     },
-    userItem: {
-        flexDirection: 'row',
-        padding: 15,
-        alignItems: 'center',
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+    darkText: {
+      color: colors.textLight,
     },
-    userImage: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        marginRight: 15,
+    settingsButton: {
+      padding: 8,
+      borderRadius: 20,
+      backgroundColor: colors.surfaceLight,
+      elevation: 2,
     },
-    userInfo: {
-        flex: 1,
+    darkSettingsButton: {
+      backgroundColor: colors.surfaceDark,
     },
-    email: {
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    passwordPlaceholder: {
-        color: '#aaa',
-    },
-    deleteButton: {
-        padding: 10,
-    },
-    loading: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    list: {
-        flex: 1,
-    },
-    emptyListText: {
-        textAlign: 'center',
-        marginTop: 20,
-        color: '#888',
-    },
-    error: {
-        textAlign: 'center',
-        color: 'red',
-        marginTop: 20,
-    },
-    modalContainer: {
-        backgroundColor: '#fff',
-        borderRadius: 10,
-        padding: 20,
-        alignItems: 'center',
-    },
-    modalTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        marginBottom: 10,
-    },
-    modalText: {
-        fontSize: 16,
-        marginBottom: 20,
-    },
-    modalButtons: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        width: '100%',
-    },
-    modalButton: {
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        borderRadius: 5,
-        marginTop: 10,
-    },
-    cancelButton: {
-        backgroundColor: '#f44336',
-    },
-    confirmButton: {
-        backgroundColor: '#28a745',
-    },
-    cancelButtonText: {
-        color: '#fff',
-        fontSize: 16,
-    },
-    confirmButtonText: {
-        color: '#fff',
-        fontSize: 16,
-    },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    color: colors.textPrimary,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    elevation: 2,
+  },
+  darkStatsContainer: {
+    backgroundColor: colors.surfaceDark,
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 20,
+    elevation: 1,
+  },
+  darkSearchContainer: {
+    backgroundColor: colors.surfaceDark,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.textPrimary,
+    paddingVertical: 4,
+  },
+  darkSearchInput: {
+    color: colors.textLight,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: colors.textPrimary,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyText: {
+    marginTop: 16,
+    fontSize: 18,
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  usersList: {
+    marginBottom: 20,
+  },
+  userCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 10,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 1,
+  },
+  darkUserCard: {
+    backgroundColor: colors.surfaceDark,
+  },
+  userAvatar: {
+    marginRight: 16,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  userEmail: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  roleBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  roleText: {
+    color: colors.textLight,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContainer: {
+    margin: 20,
+    backgroundColor: colors.surfaceLight,
+    borderRadius: 16,
+    padding: 24,
+    elevation: 5,
+  },
+  darkModalContainer: {
+    backgroundColor: colors.surfaceDark,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+  },
+  userDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  userDetailText: {
+    marginLeft: 16,
+    flex: 1,
+  },
+  detailLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 2,
+  },
+  detailValue: {
+    fontSize: 16,
+    color: colors.textPrimary,
+    fontWeight: '500',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 24,
+  },
+  actionButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  actionButtonText: {
+    color: colors.textLight,
+    fontWeight: 'bold',
+  },
 });
 
 export default UsersScreen;
